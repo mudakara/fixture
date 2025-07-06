@@ -17,10 +17,12 @@ export default function LoginPage() {
 
   useEffect(() => {
     // Check if user is already authenticated
-    const storedUser = localStorage.getItem('user');
-    if (storedUser) {
-      router.push('/dashboard');
-      return;
+    if (typeof window !== 'undefined') {
+      const storedUser = localStorage.getItem('user');
+      if (storedUser) {
+        router.push('/dashboard');
+        return;
+      }
     }
 
     if (accounts.length > 0) {
@@ -90,7 +92,9 @@ export default function LoginPage() {
       if (response.data.success) {
         // Store user data in Redux
         dispatch(loginSuccess(response.data.user));
-        localStorage.setItem('user', JSON.stringify(response.data.user));
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('user', JSON.stringify(response.data.user));
+        }
         router.push('/dashboard');
       }
     } catch (error: any) {

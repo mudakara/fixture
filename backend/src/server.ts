@@ -23,6 +23,9 @@ import { createDefaultSuperAdmin } from './services/authService';
 import { createBearerStrategy } from './config/azureAd';
 import logger from './utils/logger';
 import authRoutes from './routes/auth';
+import usersRoutes from './routes/users';
+import permissionsRoutes from './routes/permissions';
+import { PermissionService } from './services/permissionService';
 
 const app = express();
 const PORT = parseInt(process.env.PORT || '3501', 10);
@@ -75,6 +78,8 @@ if (process.env.AZURE_AD_CLIENT_ID && process.env.AZURE_AD_TENANT_ID) {
 
 // Routes
 app.use('/api/auth', authRoutes);
+app.use('/api', usersRoutes);
+app.use('/api', permissionsRoutes);
 
 app.get('/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
@@ -100,4 +105,5 @@ app.use((err: Error, _req: express.Request, res: express.Response, _next: expres
 app.listen(PORT, async () => {
   logger.info(`Server running on port ${PORT}`);
   await createDefaultSuperAdmin();
+  await PermissionService.initializeDefaultPermissions();
 });

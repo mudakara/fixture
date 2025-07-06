@@ -55,6 +55,10 @@ export const authorizeTeamAccess = async (req: AuthRequest, res: Response, next:
       return next();
     }
 
+    if (user.role === UserRole.VICECAPTAIN && user.teamId?.toString() === teamId) {
+      return next();
+    }
+
     if (user.role === UserRole.PLAYER && user.teamId?.toString() === teamId) {
       req.user.limitedAccess = true;
       return next();

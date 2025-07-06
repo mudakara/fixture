@@ -15,23 +15,28 @@ export const useAuth = () => {
 
   useEffect(() => {
     // Check for stored user data on mount
-    const storedUser = localStorage.getItem('user');
-    
-    if (storedUser && !isAuthenticated) {
-      try {
-        const userData = JSON.parse(storedUser);
-        dispatch(loginSuccess(userData));
-      } catch (error) {
-        console.error('Failed to parse stored user data:', error);
-        localStorage.removeItem('user');
+    if (typeof window !== 'undefined') {
+      const storedUser = localStorage.getItem('user');
+      
+      if (storedUser && !isAuthenticated) {
+        try {
+          const userData = JSON.parse(storedUser);
+          dispatch(loginSuccess(userData));
+        } catch (error) {
+          console.error('Failed to parse stored user data:', error);
+          localStorage.removeItem('user');
+        }
       }
     }
   }, [dispatch, isAuthenticated]);
 
   const checkAuth = () => {
     // Check both Redux state and localStorage
-    const storedUser = localStorage.getItem('user');
-    return isAuthenticated || !!storedUser || accounts.length > 0;
+    if (typeof window !== 'undefined') {
+      const storedUser = localStorage.getItem('user');
+      return isAuthenticated || !!storedUser || accounts.length > 0;
+    }
+    return isAuthenticated || accounts.length > 0;
   };
 
   const requireAuth = () => {
@@ -42,9 +47,28 @@ export const useAuth = () => {
     return true;
   };
 
-  const signOut = () => {
-    localStorage.removeItem('user');
+  const signOut = async () => {
+    // Clear local storage
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('user');
+    }
+    
+    // Clear Redux state
     dispatch(logout());
+    
+    // Try to logout from MSAL
+    if (typeof window !== 'undefined') {
+      const { instance } = await import('@azure/msal-react').then(m => ({ instance: (window as any).msalInstance }));
+      if (instance && instance.getAllAccounts().length > 0) {
+        try {
+          await instance.logoutPopup();
+        } catch (error) {
+          console.error('MSAL logout error:', error);
+        }
+      }
+    }
+    
+    // Redirect to login
     router.push('/login');
   };
 

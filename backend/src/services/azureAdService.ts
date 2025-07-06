@@ -42,7 +42,12 @@ export class AzureAdService {
       });
 
       if (user) {
+        // Check if this is a local user converting to Azure AD
+        const wasLocalUser = user.authProvider === 'local';
+        
         // Update existing user
+        // Note: If converting from local to Azure AD, the password field is preserved
+        // This allows reverting to local auth if needed
         const updates: any = {
           lastLogin: new Date(),
           displayName: userInfo.displayName,
@@ -70,11 +75,20 @@ export class AzureAdService {
           action: ActionType.LOGIN,
           entity: 'User',
           entityId: user!._id,
-          details: { method: 'azuread', updated: true },
+          details: { 
+            method: 'azuread', 
+            updated: true,
+            wasLocalUser,
+            convertedFromLocal: wasLocalUser
+          },
           ipAddress
         });
 
-        logger.info(`User ${user!.email} logged in via Azure AD (updated)`);
+        if (wasLocalUser) {
+          logger.info(`Local user ${user!.email} converted to Azure AD authentication`);
+        } else {
+          logger.info(`User ${user!.email} logged in via Azure AD (updated)`);
+        }
       } else {
         // Create new user
         user = await User.create({
