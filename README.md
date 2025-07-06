@@ -16,8 +16,11 @@ A comprehensive sports fixture management system with role-based access control.
 2. Install dependencies: `npm run install:all`
 3. Set up environment variables:
    - Copy `backend/.env.example` to `backend/.env`
-   - Update MongoDB URI and other settings
+   - Copy `frontend/.env.local.example` to `frontend/.env.local`
+   - Update MongoDB URI and Azure AD settings
 4. Run development servers: `npm run dev`
+   - Frontend: http://localhost:3500
+   - Backend: http://localhost:3501
 
 ## Development Commands
 

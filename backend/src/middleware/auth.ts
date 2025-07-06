@@ -6,7 +6,7 @@ export interface AuthRequest extends Request {
   user?: any;
 }
 
-export const authenticate = async (req: AuthRequest, res: Response, next: NextFunction) => {
+export const authenticate = async (req: AuthRequest, res: Response, next: NextFunction): Promise<any> => {
   try {
     const token = req.cookies.token || req.header('Authorization')?.replace('Bearer ', '');
 
@@ -24,12 +24,12 @@ export const authenticate = async (req: AuthRequest, res: Response, next: NextFu
     req.user = user;
     next();
   } catch (error) {
-    res.status(401).json({ error: 'Invalid authentication' });
+    return res.status(401).json({ error: 'Invalid authentication' });
   }
 };
 
 export const authorize = (...roles: UserRole[]) => {
-  return (req: AuthRequest, res: Response, next: NextFunction) => {
+  return (req: AuthRequest, res: Response, next: NextFunction): any => {
     if (!req.user) {
       return res.status(401).json({ error: 'Authentication required' });
     }
@@ -42,7 +42,7 @@ export const authorize = (...roles: UserRole[]) => {
   };
 };
 
-export const authorizeTeamAccess = async (req: AuthRequest, res: Response, next: NextFunction) => {
+export const authorizeTeamAccess = async (req: AuthRequest, res: Response, next: NextFunction): Promise<any> => {
   try {
     const { teamId } = req.params;
     const user = req.user;
@@ -62,6 +62,6 @@ export const authorizeTeamAccess = async (req: AuthRequest, res: Response, next:
 
     return res.status(403).json({ error: 'Access denied to this team' });
   } catch (error) {
-    res.status(500).json({ error: 'Authorization error' });
+    return res.status(500).json({ error: 'Authorization error' });
   }
 };

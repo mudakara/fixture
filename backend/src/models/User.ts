@@ -11,14 +11,24 @@ export enum UserRole {
 export interface IUser extends Document {
   name: string;
   email: string;
-  password: string;
+  password?: string;
   role: UserRole;
   teamId?: mongoose.Types.ObjectId;
   isActive: boolean;
   lastLogin?: Date;
   createdAt: Date;
   updatedAt: Date;
-  comparePassword(candidatePassword: string): Promise<boolean>;
+  // Azure AD specific fields
+  azureAdId?: string;
+  displayName?: string;
+  jobTitle?: string;
+  department?: string;
+  officeLocation?: string;
+  mobilePhone?: string;
+  preferredLanguage?: string;
+  userPrincipalName?: string;
+  authProvider: 'local' | 'azuread';
+  comparePassword?(candidatePassword: string): Promise<boolean>;
 }
 
 const userSchema = new Schema<IUser>(
@@ -39,7 +49,9 @@ const userSchema = new Schema<IUser>(
     },
     password: {
       type: String,
-      required: [true, 'Password is required'],
+      required: function() {
+        return this.authProvider === 'local';
+      },
       minlength: [6, 'Password must be at least 6 characters'],
       select: false
     },
@@ -58,6 +70,39 @@ const userSchema = new Schema<IUser>(
     },
     lastLogin: {
       type: Date
+    },
+    // Azure AD fields
+    azureAdId: {
+      type: String,
+      unique: true,
+      sparse: true
+    },
+    displayName: {
+      type: String
+    },
+    jobTitle: {
+      type: String
+    },
+    department: {
+      type: String
+    },
+    officeLocation: {
+      type: String
+    },
+    mobilePhone: {
+      type: String
+    },
+    preferredLanguage: {
+      type: String
+    },
+    userPrincipalName: {
+      type: String
+    },
+    authProvider: {
+      type: String,
+      enum: ['local', 'azuread'],
+      default: 'local',
+      required: true
     }
   },
   {
@@ -66,7 +111,7 @@ const userSchema = new Schema<IUser>(
 );
 
 userSchema.pre('save', async function(next) {
-  if (!this.isModified('password')) return next();
+  if (!this.isModified('password') || !this.password) return next();
   
   const salt = await bcrypt.genSalt(10);
   this.password = await bcrypt.hash(this.password, salt);
@@ -74,6 +119,7 @@ userSchema.pre('save', async function(next) {
 });
 
 userSchema.methods.comparePassword = async function(candidatePassword: string): Promise<boolean> {
+  if (!this.password) return false;
   return await bcrypt.compare(candidatePassword, this.password);
 };
 

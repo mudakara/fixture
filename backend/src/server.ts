@@ -4,15 +4,32 @@ import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
 import rateLimit from 'express-rate-limit';
 import dotenv from 'dotenv';
+
+// Load environment variables first
+dotenv.config();
+
+// Verify environment is loaded
+console.log('Loading environment from:', process.cwd() + '/.env');
+console.log('Environment loaded:', {
+  NODE_ENV: process.env.NODE_ENV,
+  PORT: process.env.PORT,
+  CLIENT_URL: process.env.CLIENT_URL
+});
+
+import passport from 'passport';
 import connectDB from './config/database';
 import { requestLogger, errorLogger } from './middleware/logging';
 import { createDefaultSuperAdmin } from './services/authService';
+import { createBearerStrategy } from './config/azureAd';
 import logger from './utils/logger';
-
-dotenv.config();
+import authRoutes from './routes/auth';
 
 const app = express();
-const PORT = process.env.PORT || 5000;
+const PORT = parseInt(process.env.PORT || '3501', 10);
+
+console.log('Environment PORT:', process.env.PORT);
+console.log('Using PORT:', PORT);
+console.log('CORS CLIENT_URL:', process.env.CLIENT_URL);
 
 connectDB();
 
@@ -22,24 +39,58 @@ const limiter = rateLimit({
   message: 'Too many requests from this IP, please try again later.'
 });
 
-app.use(helmet());
-app.use(cors({
-  origin: process.env.CLIENT_URL || 'http://localhost:3000',
-  credentials: true
+app.use(helmet({
+  crossOriginResourcePolicy: false,
 }));
+// CORS configuration
+const corsOptions = {
+  origin: process.env.CLIENT_URL || 'http://localhost:3500',
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'Cookie'],
+  exposedHeaders: ['set-cookie'],
+  optionsSuccessStatus: 200
+};
+
+app.use(cors(corsOptions));
+
+// Handle preflight requests
+app.options('*', cors(corsOptions));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 app.use(requestLogger);
 app.use('/api/', limiter);
 
-app.get('/health', (req, res) => {
+// Initialize Passport
+app.use(passport.initialize());
+
+// Only initialize Azure AD strategy if credentials are provided
+if (process.env.AZURE_AD_CLIENT_ID && process.env.AZURE_AD_TENANT_ID) {
+  passport.use(createBearerStrategy());
+  logger.info('Azure AD authentication initialized');
+} else {
+  logger.warn('Azure AD credentials not found. Azure AD authentication disabled.');
+}
+
+// Routes
+app.use('/api/auth', authRoutes);
+
+app.get('/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
+// Test endpoint for CORS
+app.post('/api/test-cors', (_req, res) => {
+  res.json({ 
+    message: 'CORS test successful', 
+    cors: process.env.CLIENT_URL || 'http://localhost:3500'
+  });
 });
 
 app.use(errorLogger);
 
-app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {
+app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   res.status(500).json({
     error: 'Internal server error',
     message: process.env.NODE_ENV === 'development' ? err.message : undefined

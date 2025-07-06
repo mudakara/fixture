@@ -53,7 +53,7 @@ export const auditLogger = (action: ActionType, entity: string) => {
   };
 };
 
-export const errorLogger = (err: Error, req: Request, res: Response, next: NextFunction) => {
+export const errorLogger = (err: Error, req: Request, _res: Response, next: NextFunction) => {
   logger.error({
     error: err.message,
     stack: err.stack,

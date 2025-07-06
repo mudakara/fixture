@@ -1,15 +1,23 @@
-import jwt from 'jsonwebtoken';
+import jwt, { SignOptions } from 'jsonwebtoken';
 import User, { IUser } from '../models/User';
 import { Response } from 'express';
 
 export const generateToken = (id: string): string => {
-  return jwt.sign({ id }, process.env.JWT_SECRET as string, {
+  const secret = process.env.JWT_SECRET;
+  if (!secret) {
+    throw new Error('JWT_SECRET is not defined in environment variables');
+  }
+  
+  const options: SignOptions = {
     expiresIn: process.env.JWT_EXPIRE || '30d'
-  });
+  } as SignOptions;
+  
+  return jwt.sign({ id }, secret, options);
 };
 
 export const sendTokenResponse = (user: IUser, statusCode: number, res: Response) => {
-  const token = generateToken(user._id);
+  const userId = (user._id as any).toString();
+  const token = generateToken(userId);
 
   const options = {
     expires: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
