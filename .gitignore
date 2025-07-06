@@ -24,6 +24,7 @@ backend/logs/
 .env.production.local
 backend/.env
 frontend/.env
+!*.example
 
 # IDE
 .vscode/
