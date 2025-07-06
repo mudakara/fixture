@@ -34,10 +34,10 @@ npm run dev         # Start both frontend (port 3500) and backend (port 3501)
 ## Architecture
 
 ### Backend Structure
-- `backend/src/models/` - MongoDB models (User, Team, Fixture, AuditLog)
+- `backend/src/models/` - MongoDB models (User, Team, Fixture, AuditLog, Permission)
 - `backend/src/middleware/` - Auth and logging middleware
-- `backend/src/routes/` - API endpoints (auth routes for Microsoft SSO)
-- `backend/src/services/` - Business logic (authService, azureAdService)
+- `backend/src/routes/` - API endpoints (auth, users, permissions)
+- `backend/src/services/` - Business logic (authService, azureAdService, permissionService)
 - `backend/src/config/` - Configuration files (database, Azure AD)
 - `backend/src/utils/` - Utilities (logger)
 - `backend/logs/` - Log files (auto-created)
@@ -45,9 +45,11 @@ npm run dev         # Start both frontend (port 3500) and backend (port 3501)
 ### Frontend Structure
 - `frontend/app/` - Next.js 14 app directory
   - `login/` - Microsoft SSO login page
-  - `dashboard/` - Protected dashboard with user info
-  - `test-api/` - API debugging page
-- `frontend/src/components/` - React components (AuthGuard)
+  - `dashboard/` - Protected dashboard with statistics and quick actions
+  - `profile/` - User profile page with tabs
+  - `roles/` - User and permissions management (super admin only)
+  - `teams/`, `fixtures/`, `players/`, `reports/`, `settings/` - Feature pages
+- `frontend/src/components/` - React components (AuthGuard, Header)
 - `frontend/src/store/` - Redux store and auth slice
 - `frontend/src/providers/` - MSAL and Redux providers
 - `frontend/src/hooks/` - Custom hooks (useAuth)
@@ -55,23 +57,69 @@ npm run dev         # Start both frontend (port 3500) and backend (port 3501)
 - `frontend/middleware.ts` - Next.js middleware for route protection
 
 ### Key Features
+
 1. **Role-Based Access Control**
-   - Super Admin: Full system access
+   - Super Admin: Full system access, user management, permissions configuration
    - Admin: Manage teams and fixtures
    - Captain: Manage own team
+   - Vice Captain: Same permissions as Captain (new role)
    - Player: View team information
 
-2. **Logging System**
-   - All actions logged to files in `backend/logs/`
-   - Audit trail stored in MongoDB
-   - Winston logger with rotation
+2. **User Management System** (Super Admin only)
+   - View all users with sortable columns (Name, Role)
+   - Create new users manually with Add User button
+   - Edit user roles with improved dropdown UI
+   - Delete users (except super admins who are protected)
+   - Azure AD to local user conversion support
+   - Auth type indicator (Azure AD vs Local)
 
-3. **Authentication**
+3. **Permissions System**
+   - Dynamic role-based permissions configuration
+   - Resource-based access control (users, teams, fixtures, players, reports, roles, permissions)
+   - CRUD actions per resource (create, read, update, delete)
+   - Visual permissions matrix for easy management
+
+4. **Enhanced UI Components**
+   - Header with logo, navigation menu, user info, and logout
+   - User dropdown menu with profile and settings links
+   - Dashboard with statistics cards and quick actions
+   - Profile page with Overview, Team Info, and Activity Log tabs
+   - Responsive design with mobile menu support
+
+5. **Logging System**
+   - All actions logged to files in `backend/logs/`
+   - Audit trail stored in MongoDB with proper schema
+   - Winston logger with rotation
+   - Tracks user actions: create, update, delete, login, logout
+
+6. **Authentication**
    - JWT with httpOnly cookies
    - Microsoft Azure AD SSO integration (primary authentication method)
    - Automatic user creation/update on first login
+   - Local to Azure AD conversion when same email logs in via SSO
    - Support for multi-tenant and personal Microsoft accounts
    - Default super admin: admin@matchmakerpro.com / changethispassword (local auth)
+
+## API Endpoints
+
+### Authentication
+- `POST /api/auth/microsoft` - Authenticate with Microsoft token
+- `POST /api/auth/login` - Local authentication
+- `POST /api/auth/logout` - Logout user
+- `GET /api/auth/me` - Get current user
+
+### Users (Super Admin only)
+- `GET /api/users` - Get all users
+- `POST /api/users` - Create new user
+- `PUT /api/users/:userId/role` - Update user role
+- `DELETE /api/users/:userId` - Delete user
+- `GET /api/users/stats` - Get user statistics
+
+### Permissions (Super Admin only)
+- `GET /api/permissions` - Get all permissions
+- `GET /api/permissions/:role` - Get permissions for a role
+- `PUT /api/permissions/:role` - Update role permissions
+- `POST /api/permissions/check` - Check user permission
 
 ## Important Conventions
 
@@ -84,6 +132,7 @@ npm run dev         # Start both frontend (port 3500) and backend (port 3501)
 7. **Ports** - Frontend runs on port 3500, Backend API runs on port 3501
 8. **CORS** - Backend configured to accept requests only from http://localhost:3500
 9. **Authentication Flow** - Users login via Microsoft → Backend validates token → Creates/updates user → Returns JWT
+10. **Role Naming** - Roles use underscores (super_admin, vice_captain) in database
 
 ## Azure AD Configuration
 
@@ -102,7 +151,9 @@ Required API Permissions:
 ## Common Issues and Solutions
 
 1. **CORS Errors**: Ensure backend .env has `CLIENT_URL=http://localhost:3500`
-2. **Port Already in Use**: Kill existing processes with `pkill -f nodemon`
+2. **Port Already in Use**: Kill existing processes with `pkill -f nodemon` or `lsof -ti:PORT | xargs kill -9`
 3. **MongoDB Connection**: Ensure MongoDB is running locally
 4. **Azure AD Errors**: Check redirect URI matches exactly in Azure Portal
 5. **TypeScript Errors**: Run `npm run build` in backend to check for errors
+6. **localStorage Errors**: All localStorage access is wrapped with `typeof window !== 'undefined'`
+7. **AuditLog Validation**: Use correct schema - entity (not resource), action enum values
