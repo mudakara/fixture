@@ -20,6 +20,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@types/multer": "^2.0.0",
     "@types/passport": "^1.0.17",
     "@types/passport-azure-ad": "^4.3.6",
     "axios": "^1.10.0",
@@ -33,6 +34,7 @@
     "helmet": "^7.1.0",
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.0.0",
+    "multer": "^2.0.1",
     "passport": "^0.7.0",
     "passport-azure-ad": "^4.3.5",
     "winston": "^3.11.0"

@@ -6,6 +6,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 MatchMaker Pro is a sports fixture management system with role-based access control, built with Next.js, Node.js, Express, and MongoDB. The application uses Microsoft Azure AD for authentication with automatic user synchronization.
 
+### Hierarchical Structure
+The application follows an Event-Team-Player hierarchy:
+- **Organization** hosts multiple **Events**
+- Each **Event** contains multiple **Teams**
+- Each **Team** has multiple **Players** (users)
+
 ## Development Commands
 
 ### Quick Start
@@ -34,13 +40,14 @@ npm run dev         # Start both frontend (port 3500) and backend (port 3501)
 ## Architecture
 
 ### Backend Structure
-- `backend/src/models/` - MongoDB models (User, Team, Fixture, AuditLog, Permission)
+- `backend/src/models/` - MongoDB models (User, Event, Team, Fixture, AuditLog, Permission)
 - `backend/src/middleware/` - Auth and logging middleware
-- `backend/src/routes/` - API endpoints (auth, users, permissions)
+- `backend/src/routes/` - API endpoints (auth, users, permissions, events, teams)
 - `backend/src/services/` - Business logic (authService, azureAdService, permissionService)
 - `backend/src/config/` - Configuration files (database, Azure AD)
 - `backend/src/utils/` - Utilities (logger)
 - `backend/logs/` - Log files (auto-created)
+- `backend/uploads/` - Storage for event and team images
 
 ### Frontend Structure
 - `frontend/app/` - Next.js 14 app directory
@@ -48,7 +55,12 @@ npm run dev         # Start both frontend (port 3500) and backend (port 3501)
   - `dashboard/` - Protected dashboard with statistics and quick actions
   - `profile/` - User profile page with tabs
   - `roles/` - User and permissions management (super admin only)
-  - `teams/`, `fixtures/`, `players/`, `reports/`, `settings/` - Feature pages
+  - `events/` - Event management (list, create, detail views)
+  - `events/[id]/` - Event detail with teams
+  - `events/[eventId]/teams/create` - Create team for event
+  - `teams/` - Team listing with event filter
+  - `teams/[id]/` - Team detail with players
+  - `fixtures/`, `players/`, `reports/`, `settings/` - Feature pages
 - `frontend/src/components/` - React components (AuthGuard, Header)
 - `frontend/src/store/` - Redux store and auth slice
 - `frontend/src/providers/` - MSAL and Redux providers
@@ -58,14 +70,27 @@ npm run dev         # Start both frontend (port 3500) and backend (port 3501)
 
 ### Key Features
 
-1. **Role-Based Access Control**
-   - Super Admin: Full system access, user management, permissions configuration
-   - Admin: Manage teams and fixtures
-   - Captain: Manage own team
-   - Vice Captain: Same permissions as Captain (new role)
-   - Player: View team information
+1. **Event Management System**
+   - Create and manage events with start/end dates
+   - Upload event images/logos
+   - Track event status (upcoming, ongoing, ended)
+   - Event-based team organization
 
-2. **User Management System** (Super Admin only)
+2. **Team Management**
+   - Create teams within events
+   - Assign captains and vice-captains
+   - Upload team logos
+   - Manage team players
+   - Filter teams by event
+
+3. **Role-Based Access Control**
+   - Super Admin: Full system access, user management, permissions configuration
+   - Admin: Create/manage events and teams
+   - Captain: Manage own team and players
+   - Vice Captain: Same permissions as Captain
+   - Player: View team and event information
+
+4. **User Management System** (Super Admin only)
    - View all users with sortable columns (Name, Role)
    - Create new users manually with Add User button
    - Edit user roles with improved dropdown UI
@@ -73,26 +98,26 @@ npm run dev         # Start both frontend (port 3500) and backend (port 3501)
    - Azure AD to local user conversion support
    - Auth type indicator (Azure AD vs Local)
 
-3. **Permissions System**
+5. **Permissions System**
    - Dynamic role-based permissions configuration
    - Resource-based access control (users, teams, fixtures, players, reports, roles, permissions)
    - CRUD actions per resource (create, read, update, delete)
    - Visual permissions matrix for easy management
 
-4. **Enhanced UI Components**
+6. **Enhanced UI Components**
    - Header with logo, navigation menu, user info, and logout
    - User dropdown menu with profile and settings links
    - Dashboard with statistics cards and quick actions
    - Profile page with Overview, Team Info, and Activity Log tabs
    - Responsive design with mobile menu support
 
-5. **Logging System**
+7. **Logging System**
    - All actions logged to files in `backend/logs/`
    - Audit trail stored in MongoDB with proper schema
    - Winston logger with rotation
    - Tracks user actions: create, update, delete, login, logout
 
-6. **Authentication**
+8. **Authentication**
    - JWT with httpOnly cookies
    - Microsoft Azure AD SSO integration (primary authentication method)
    - Automatic user creation/update on first login
@@ -107,6 +132,23 @@ npm run dev         # Start both frontend (port 3500) and backend (port 3501)
 - `POST /api/auth/login` - Local authentication
 - `POST /api/auth/logout` - Logout user
 - `GET /api/auth/me` - Get current user
+
+### Events
+- `GET /api/events` - Get all events
+- `POST /api/events` - Create new event (Admin only)
+- `GET /api/events/:id` - Get event with teams
+- `PUT /api/events/:id` - Update event (Admin only)
+- `DELETE /api/events/:id` - Soft delete event (Admin only)
+- `GET /api/events/:id/stats` - Get event statistics
+
+### Teams
+- `GET /api/teams` - Get all teams (with optional event filter)
+- `POST /api/teams` - Create new team (Admin only)
+- `GET /api/teams/:id` - Get team details
+- `PUT /api/teams/:id` - Update team
+- `DELETE /api/teams/:id` - Soft delete team (Admin only)
+- `POST /api/teams/:id/players` - Add player to team
+- `DELETE /api/teams/:id/players/:playerId` - Remove player from team
 
 ### Users (Super Admin only)
 - `GET /api/users` - Get all users
@@ -133,6 +175,8 @@ npm run dev         # Start both frontend (port 3500) and backend (port 3501)
 8. **CORS** - Backend configured to accept requests only from http://localhost:3500
 9. **Authentication Flow** - Users login via Microsoft → Backend validates token → Creates/updates user → Returns JWT
 10. **Role Naming** - Roles use underscores (super_admin, vice_captain) in database
+11. **File Uploads** - Multer handles image uploads for events and teams, stored in backend/uploads/
+12. **Data Relationships** - Events → Teams → Players (Users) hierarchy with MongoDB references
 
 ## Azure AD Configuration
 

@@ -9,12 +9,20 @@ export enum UserRole {
   PLAYER = 'player'
 }
 
+export interface ITeamMembership {
+  teamId: mongoose.Types.ObjectId;
+  eventId: mongoose.Types.ObjectId;
+  role: 'captain' | 'vicecaptain' | 'player';
+  joinedAt: Date;
+}
+
 export interface IUser extends Document {
   name: string;
   email: string;
   password?: string;
   role: UserRole;
-  teamId?: mongoose.Types.ObjectId;
+  teamId?: mongoose.Types.ObjectId; // Deprecated - will be removed
+  teamMemberships: ITeamMembership[];
   isActive: boolean;
   lastLogin?: Date;
   createdAt: Date;
@@ -65,6 +73,27 @@ const userSchema = new Schema<IUser>(
       type: Schema.Types.ObjectId,
       ref: 'Team'
     },
+    teamMemberships: [{
+      teamId: {
+        type: Schema.Types.ObjectId,
+        ref: 'Team',
+        required: true
+      },
+      eventId: {
+        type: Schema.Types.ObjectId,
+        ref: 'Event',
+        required: true
+      },
+      role: {
+        type: String,
+        enum: ['captain', 'vicecaptain', 'player'],
+        required: true
+      },
+      joinedAt: {
+        type: Date,
+        default: Date.now
+      }
+    }],
     isActive: {
       type: Boolean,
       default: true
@@ -110,6 +139,12 @@ const userSchema = new Schema<IUser>(
     timestamps: true
   }
 );
+
+// Indexes for better query performance
+userSchema.index({ email: 1 });
+userSchema.index({ role: 1 });
+userSchema.index({ 'teamMemberships.teamId': 1 });
+userSchema.index({ 'teamMemberships.eventId': 1 });
 
 userSchema.pre('save', async function(next) {
   if (!this.isModified('password') || !this.password) return next();

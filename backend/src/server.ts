@@ -4,6 +4,7 @@ import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
 import rateLimit from 'express-rate-limit';
 import dotenv from 'dotenv';
+import path from 'path';
 
 // Load environment variables first
 dotenv.config();
@@ -25,6 +26,8 @@ import logger from './utils/logger';
 import authRoutes from './routes/auth';
 import usersRoutes from './routes/users';
 import permissionsRoutes from './routes/permissions';
+import eventsRoutes from './routes/events';
+import teamsRoutes from './routes/teams';
 import { PermissionService } from './services/permissionService';
 
 const app = express();
@@ -65,6 +68,9 @@ app.use(cookieParser());
 app.use(requestLogger);
 app.use('/api/', limiter);
 
+// Serve static files for uploads
+app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+
 // Initialize Passport
 app.use(passport.initialize());
 
@@ -80,6 +86,8 @@ if (process.env.AZURE_AD_CLIENT_ID && process.env.AZURE_AD_TENANT_ID) {
 app.use('/api/auth', authRoutes);
 app.use('/api', usersRoutes);
 app.use('/api', permissionsRoutes);
+app.use('/api', eventsRoutes);
+app.use('/api', teamsRoutes);
 
 app.get('/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });

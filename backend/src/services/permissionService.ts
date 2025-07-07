@@ -9,6 +9,7 @@ interface PermissionCheck {
 const defaultPermissions = {
   super_admin: [
     { resource: 'users', actions: ['create', 'read', 'update', 'delete'] },
+    { resource: 'events', actions: ['create', 'read', 'update', 'delete'] },
     { resource: 'teams', actions: ['create', 'read', 'update', 'delete'] },
     { resource: 'fixtures', actions: ['create', 'read', 'update', 'delete'] },
     { resource: 'players', actions: ['create', 'read', 'update', 'delete'] },
@@ -17,22 +18,26 @@ const defaultPermissions = {
     { resource: 'permissions', actions: ['read', 'update'] }
   ],
   admin: [
+    { resource: 'events', actions: ['create', 'read', 'update', 'delete'] },
     { resource: 'teams', actions: ['create', 'read', 'update', 'delete'] },
     { resource: 'fixtures', actions: ['create', 'read', 'update', 'delete'] },
     { resource: 'players', actions: ['create', 'read', 'update'] },
     { resource: 'reports', actions: ['read'] }
   ],
   captain: [
+    { resource: 'events', actions: ['read'] },
     { resource: 'teams', actions: ['read', 'update'] },
     { resource: 'fixtures', actions: ['read', 'update'] },
     { resource: 'players', actions: ['read', 'update'] }
   ],
   vicecaptain: [
+    { resource: 'events', actions: ['read'] },
     { resource: 'teams', actions: ['read', 'update'] },
     { resource: 'fixtures', actions: ['read', 'update'] },
     { resource: 'players', actions: ['read', 'update'] }
   ],
   player: [
+    { resource: 'events', actions: ['read'] },
     { resource: 'teams', actions: ['read'] },
     { resource: 'fixtures', actions: ['read'] },
     { resource: 'players', actions: ['read'] }

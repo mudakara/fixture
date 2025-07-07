@@ -32,6 +32,7 @@ interface RolePermissions {
 const defaultPermissions: RolePermissions = {
   super_admin: [
     { resource: 'users', actions: ['create', 'read', 'update', 'delete'] },
+    { resource: 'events', actions: ['create', 'read', 'update', 'delete'] },
     { resource: 'teams', actions: ['create', 'read', 'update', 'delete'] },
     { resource: 'fixtures', actions: ['create', 'read', 'update', 'delete'] },
     { resource: 'players', actions: ['create', 'read', 'update', 'delete'] },
@@ -40,22 +41,26 @@ const defaultPermissions: RolePermissions = {
     { resource: 'permissions', actions: ['read', 'update'] }
   ],
   admin: [
+    { resource: 'events', actions: ['create', 'read', 'update', 'delete'] },
     { resource: 'teams', actions: ['create', 'read', 'update', 'delete'] },
     { resource: 'fixtures', actions: ['create', 'read', 'update', 'delete'] },
     { resource: 'players', actions: ['create', 'read', 'update'] },
     { resource: 'reports', actions: ['read'] }
   ],
   captain: [
+    { resource: 'events', actions: ['read'] },
     { resource: 'teams', actions: ['read', 'update'] },
     { resource: 'fixtures', actions: ['read', 'update'] },
     { resource: 'players', actions: ['read', 'update'] }
   ],
   vicecaptain: [
+    { resource: 'events', actions: ['read'] },
     { resource: 'teams', actions: ['read', 'update'] },
     { resource: 'fixtures', actions: ['read', 'update'] },
     { resource: 'players', actions: ['read', 'update'] }
   ],
   player: [
+    { resource: 'events', actions: ['read'] },
     { resource: 'teams', actions: ['read'] },
     { resource: 'fixtures', actions: ['read'] },
     { resource: 'players', actions: ['read'] }
@@ -447,7 +452,7 @@ function RolesContent() {
                       <div key={role} className="bg-gray-50 rounded-lg p-4">
                         <h3 className="text-lg font-medium text-gray-900 mb-4 capitalize">{role}</h3>
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                          {['users', 'teams', 'fixtures', 'players', 'reports', 'roles', 'permissions'].map(resource => {
+                          {['users', 'events', 'teams', 'fixtures', 'players', 'reports', 'roles', 'permissions'].map(resource => {
                             const resourcePerms = perms.find(p => p.resource === resource);
                             return (
                               <div key={resource} className="bg-white rounded-md p-3">
