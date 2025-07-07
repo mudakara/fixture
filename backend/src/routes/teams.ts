@@ -622,7 +622,7 @@ router.post('/teams/:id/players/bulk', authenticate, async (req: Request, res: R
         await newPlayer.save();
 
         // Add player to team
-        team.players.push(newPlayer._id);
+        team.players.push(newPlayer._id as mongoose.Types.ObjectId);
 
         // Log the action
         await AuditLog.create({
