@@ -4,7 +4,7 @@ import { AuthGuard } from '@/components/AuthGuard';
 import Header from '@/components/Header';
 import { useAuth } from '@/hooks/useAuth';
 import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, use } from 'react';
 import axios from 'axios';
 import Image from 'next/image';
 
@@ -20,7 +20,8 @@ interface Event {
   name: string;
 }
 
-function CreateTeamContent({ params }: { params: { eventId: string } }) {
+function CreateTeamContent({ params }: { params: Promise<{ eventId: string }> }) {
+  const resolvedParams = use(params);
   const { user } = useAuth();
   const router = useRouter();
   const [loading, setLoading] = useState(false);
@@ -43,17 +44,17 @@ function CreateTeamContent({ params }: { params: { eventId: string } }) {
   
   useEffect(() => {
     if (!canCreateTeam) {
-      router.push(`/events/${params.eventId}`);
+      router.push(`/events/${resolvedParams.eventId}`);
       return;
     }
     fetchEventAndUsers();
-  }, [params.eventId, canCreateTeam]);
+  }, [resolvedParams.eventId, canCreateTeam]);
 
   const fetchEventAndUsers = async () => {
     try {
       // Fetch event details
       const eventResponse = await axios.get(
-        `${process.env.NEXT_PUBLIC_API_URL}/events/${params.eventId}`,
+        `${process.env.NEXT_PUBLIC_API_URL}/events/${resolvedParams.eventId}`,
         { withCredentials: true }
       );
       setEvent(eventResponse.data.event);
@@ -110,7 +111,7 @@ function CreateTeamContent({ params }: { params: { eventId: string } }) {
     try {
       const formDataToSend = new FormData();
       formDataToSend.append('name', formData.name);
-      formDataToSend.append('eventId', params.eventId);
+      formDataToSend.append('eventId', resolvedParams.eventId);
       formDataToSend.append('captainId', formData.captainId);
       formDataToSend.append('viceCaptainId', formData.viceCaptainId);
       
@@ -169,7 +170,7 @@ function CreateTeamContent({ params }: { params: { eventId: string } }) {
             <div className="px-4 py-5 sm:p-6">
               <div className="flex items-center mb-6">
                 <button
-                  onClick={() => router.push(`/events/${params.eventId}`)}
+                  onClick={() => router.push(`/events/${resolvedParams.eventId}`)}
                   className="mr-4 text-gray-600 hover:text-gray-900"
                 >
                   <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -366,7 +367,7 @@ function CreateTeamContent({ params }: { params: { eventId: string } }) {
                 <div className="flex justify-end space-x-3">
                   <button
                     type="button"
-                    onClick={() => router.push(`/events/${params.eventId}`)}
+                    onClick={() => router.push(`/events/${resolvedParams.eventId}`)}
                     className="px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
                   >
                     Cancel
@@ -388,7 +389,7 @@ function CreateTeamContent({ params }: { params: { eventId: string } }) {
   );
 }
 
-export default function CreateTeamPage({ params }: { params: { eventId: string } }) {
+export default function CreateTeamPage({ params }: { params: Promise<{ eventId: string }> }) {
   return (
     <AuthGuard>
       <CreateTeamContent params={params} />

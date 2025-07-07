@@ -4,7 +4,7 @@ import { AuthGuard } from '@/components/AuthGuard';
 import Header from '@/components/Header';
 import { useAuth } from '@/hooks/useAuth';
 import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, use } from 'react';
 import axios from 'axios';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -57,7 +57,8 @@ interface EventStats {
   endDate: string;
 }
 
-function EventDetailContent({ params }: { params: { id: string } }) {
+function EventDetailContent({ params }: { params: Promise<{ id: string }> }) {
+  const resolvedParams = use(params);
   const { user } = useAuth();
   const router = useRouter();
   const [event, setEvent] = useState<Event | null>(null);
@@ -70,11 +71,11 @@ function EventDetailContent({ params }: { params: { id: string } }) {
   useEffect(() => {
     fetchEventDetails();
     fetchEventStats();
-  }, [params.id]);
+  }, [resolvedParams.id]);
 
   const fetchEventDetails = async () => {
     try {
-      const response = await axios.get(`${process.env.NEXT_PUBLIC_API_URL}/events/${params.id}`, {
+      const response = await axios.get(`${process.env.NEXT_PUBLIC_API_URL}/events/${resolvedParams.id}`, {
         withCredentials: true
       });
       setEvent(response.data.event);
@@ -88,7 +89,7 @@ function EventDetailContent({ params }: { params: { id: string } }) {
 
   const fetchEventStats = async () => {
     try {
-      const response = await axios.get(`${process.env.NEXT_PUBLIC_API_URL}/events/${params.id}/stats`, {
+      const response = await axios.get(`${process.env.NEXT_PUBLIC_API_URL}/events/${resolvedParams.id}/stats`, {
         withCredentials: true
       });
       setStats(response.data.stats);
@@ -328,7 +329,7 @@ function EventDetailContent({ params }: { params: { id: string } }) {
   );
 }
 
-export default function EventDetailPage({ params }: { params: { id: string } }) {
+export default function EventDetailPage({ params }: { params: Promise<{ id: string }> }) {
   return (
     <AuthGuard>
       <EventDetailContent params={params} />
