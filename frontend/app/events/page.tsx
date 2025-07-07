@@ -8,6 +8,7 @@ import { useEffect, useState } from 'react';
 import axios from 'axios';
 import Link from 'next/link';
 import Image from 'next/image';
+import { getImageUrl } from '@/utils/imageUrl';
 
 interface Event {
   _id: string;
@@ -142,7 +143,7 @@ function EventsContent() {
                     <div className="relative h-48 bg-gray-200">
                       {event.eventImage ? (
                         <Image
-                          src={`${process.env.NEXT_PUBLIC_API_URL}${event.eventImage}`}
+                          src={getImageUrl(event.eventImage)}
                           alt={event.name}
                           fill
                           className="object-cover"

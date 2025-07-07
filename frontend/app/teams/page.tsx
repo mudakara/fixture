@@ -8,6 +8,7 @@ import { useEffect, useState } from 'react';
 import axios from 'axios';
 import Link from 'next/link';
 import Image from 'next/image';
+import { getImageUrl } from '@/utils/imageUrl';
 
 interface Team {
   _id: string;
@@ -166,7 +167,7 @@ function TeamsContent() {
                     <div className="relative h-32 bg-gray-200">
                       {team.teamLogo ? (
                         <Image
-                          src={`${process.env.NEXT_PUBLIC_API_URL}${team.teamLogo}`}
+                          src={getImageUrl(team.teamLogo)}
                           alt={team.name}
                           fill
                           className="object-cover"

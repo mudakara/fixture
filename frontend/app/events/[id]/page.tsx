@@ -8,6 +8,7 @@ import { useEffect, useState, use } from 'react';
 import axios from 'axios';
 import Link from 'next/link';
 import Image from 'next/image';
+import { getImageUrl } from '@/utils/imageUrl';
 
 interface Event {
   _id: string;
@@ -131,7 +132,7 @@ function EventDetailContent({ params }: { params: Promise<{ id: string }> }) {
             <div className="relative h-64 bg-gray-200 rounded-t-lg overflow-hidden">
               {event.eventImage ? (
                 <Image
-                  src={`${process.env.NEXT_PUBLIC_API_URL}${event.eventImage}`}
+                  src={getImageUrl(event.eventImage)}
                   alt={event.name}
                   fill
                   className="object-cover"
@@ -293,7 +294,7 @@ function EventDetailContent({ params }: { params: Promise<{ id: string }> }) {
                             {team.teamLogo ? (
                               <div className="relative h-12 w-12 rounded-full overflow-hidden">
                                 <Image
-                                  src={`${process.env.NEXT_PUBLIC_API_URL}${team.teamLogo}`}
+                                  src={getImageUrl(team.teamLogo)}
                                   alt={team.name}
                                   fill
                                   className="object-cover"
