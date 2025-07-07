@@ -652,16 +652,18 @@ router.post('/teams/:id/players/bulk', authenticate, async (req: Request, res: R
         // Log the action
         await AuditLog.create({
           userId: user._id,
-          action: 'create_player',
+          action: 'create',
           entity: 'user',
           entityId: newPlayer._id,
           details: {
+            userType: 'player',
             playerName: name,
             playerEmail: email,
             teamId: team._id,
             teamName: team.name,
             eventId: team.eventId._id,
-            createdBy: user.name
+            createdBy: user.name,
+            bulkCreated: true
           }
         });
 
