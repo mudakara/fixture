@@ -129,7 +129,7 @@ function TeamDetailContent({ params }: { params: Promise<{ id: string }> }) {
     try {
       await axios.post(
         `${process.env.NEXT_PUBLIC_API_URL}/teams/${resolvedParams.id}/players`,
-        { userId: selectedPlayer },
+        { playerId: selectedPlayer },
         { withCredentials: true }
       );
       
