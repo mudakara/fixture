@@ -58,33 +58,42 @@ function TeamDetailContent({ params }: { params: Promise<{ id: string }> }) {
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'overview' | 'players'>('overview');
   const [showAddPlayerModal, setShowAddPlayerModal] = useState(false);
+  const [showBulkAddModal, setShowBulkAddModal] = useState(false);
   const [availableUsers, setAvailableUsers] = useState<User[]>([]);
   const [searchPlayer, setSearchPlayer] = useState('');
   const [selectedPlayer, setSelectedPlayer] = useState<string | null>(null);
   const [addingPlayer, setAddingPlayer] = useState(false);
+  const [bulkPlayerNames, setBulkPlayerNames] = useState('');
+  const [bulkAddLoading, setBulkAddLoading] = useState(false);
 
   useEffect(() => {
     fetchTeamDetails();
   }, [resolvedParams.id]);
 
-  // Handle escape key for modal
+  // Handle escape key for modals
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && showAddPlayerModal) {
-        setShowAddPlayerModal(false);
-        setSelectedPlayer(null);
-        setSearchPlayer('');
+      if (e.key === 'Escape') {
+        if (showAddPlayerModal) {
+          setShowAddPlayerModal(false);
+          setSelectedPlayer(null);
+          setSearchPlayer('');
+        }
+        if (showBulkAddModal) {
+          setShowBulkAddModal(false);
+          setBulkPlayerNames('');
+        }
       }
     };
     
-    if (showAddPlayerModal) {
+    if (showAddPlayerModal || showBulkAddModal) {
       document.addEventListener('keydown', handleEscape);
     }
     
     return () => {
       document.removeEventListener('keydown', handleEscape);
     };
-  }, [showAddPlayerModal]);
+  }, [showAddPlayerModal, showBulkAddModal]);
 
   const fetchTeamDetails = async () => {
     try {
@@ -160,6 +169,50 @@ function TeamDetailContent({ params }: { params: Promise<{ id: string }> }) {
       await fetchTeamDetails();
     } catch (err: any) {
       setError(err.response?.data?.error || 'Failed to remove player');
+    }
+  };
+
+  const handleBulkAddPlayers = async () => {
+    if (!bulkPlayerNames.trim()) return;
+    
+    setBulkAddLoading(true);
+    setError(null);
+    
+    try {
+      // Split by comma and trim each name
+      const playerNames = bulkPlayerNames
+        .split(',')
+        .map(name => name.trim())
+        .filter(name => name.length > 0);
+      
+      if (playerNames.length === 0) {
+        setError('Please enter at least one player name');
+        return;
+      }
+      
+      const response = await axios.post(
+        `${process.env.NEXT_PUBLIC_API_URL}/teams/${resolvedParams.id}/players/bulk`,
+        { playerNames },
+        { withCredentials: true }
+      );
+      
+      if (response.data.errors && response.data.errors.length > 0) {
+        const errorMessages = response.data.errors.map((e: any) => `${e.name}: ${e.error}`).join('\n');
+        setError(`Some players could not be created:\n${errorMessages}`);
+      }
+      
+      // Refresh team data
+      await fetchTeamDetails();
+      setShowBulkAddModal(false);
+      setBulkPlayerNames('');
+      
+      if (response.data.createdPlayers.length > 0) {
+        alert(`Successfully created ${response.data.createdPlayers.length} players`);
+      }
+    } catch (err: any) {
+      setError(err.response?.data?.error || 'Failed to create players');
+    } finally {
+      setBulkAddLoading(false);
     }
   };
 
@@ -320,19 +373,33 @@ function TeamDetailContent({ params }: { params: Promise<{ id: string }> }) {
                   <div className="flex justify-between items-center mb-4">
                     <h3 className="text-lg font-medium text-gray-900">Team Roster</h3>
                     {canManageTeam() && (
-                      <button
-                        onClick={() => {
-                          setError(null); // Clear any previous errors
-                          setShowAddPlayerModal(true);
-                          fetchAvailableUsers();
-                        }}
-                        className="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700"
-                      >
-                        <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                        </svg>
-                        Add Player
-                      </button>
+                      <div className="flex space-x-2">
+                        <button
+                          onClick={() => {
+                            setError(null); // Clear any previous errors
+                            setShowAddPlayerModal(true);
+                            fetchAvailableUsers();
+                          }}
+                          className="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700"
+                        >
+                          <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                          </svg>
+                          Add Player
+                        </button>
+                        <button
+                          onClick={() => {
+                            setError(null);
+                            setShowBulkAddModal(true);
+                          }}
+                          className="inline-flex items-center px-3 py-2 border border-gray-300 text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
+                        >
+                          <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+                          </svg>
+                          Bulk Add
+                        </button>
+                      </div>
                     )}
                   </div>
 
@@ -498,6 +565,76 @@ function TeamDetailContent({ params }: { params: Promise<{ id: string }> }) {
                     setShowAddPlayerModal(false);
                     setSelectedPlayer(null);
                     setSearchPlayer('');
+                  }}
+                  className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk Add Players Modal */}
+      {showBulkAddModal && (
+        <div className="fixed z-50 inset-0 overflow-y-auto">
+          <div className="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+            <div 
+              className="fixed inset-0 transition-opacity" 
+              aria-hidden="true"
+              onClick={() => {
+                setShowBulkAddModal(false);
+                setBulkPlayerNames('');
+              }}
+            >
+              <div className="absolute inset-0 bg-gray-500 opacity-75"></div>
+            </div>
+
+            <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+
+            <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full relative">
+              <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                <h3 className="text-lg font-medium text-gray-900 mb-4">Bulk Add Players</h3>
+                
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Enter player names separated by commas
+                  </label>
+                  <textarea
+                    value={bulkPlayerNames}
+                    onChange={(e) => setBulkPlayerNames(e.target.value)}
+                    placeholder="John Doe, Jane Smith, Bob Johnson, Alice Williams"
+                    autoFocus
+                    rows={5}
+                    className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-gray-900"
+                  />
+                  <p className="mt-2 text-sm text-gray-500">
+                    Each player will be created with:
+                    <ul className="list-disc list-inside mt-1">
+                      <li>Email: name@player.local (auto-generated)</li>
+                      <li>Default password: changeme123</li>
+                      <li>Role: Player</li>
+                      <li>Automatically added to this team</li>
+                    </ul>
+                  </p>
+                </div>
+              </div>
+
+              <div className="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+                <button
+                  type="button"
+                  onClick={handleBulkAddPlayers}
+                  disabled={!bulkPlayerNames.trim() || bulkAddLoading}
+                  className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-indigo-600 text-base font-medium text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:ml-3 sm:w-auto sm:text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {bulkAddLoading ? 'Creating Players...' : 'Create Players'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowBulkAddModal(false);
+                    setBulkPlayerNames('');
                   }}
                   className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
                 >

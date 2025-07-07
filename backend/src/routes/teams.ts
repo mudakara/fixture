@@ -9,6 +9,7 @@ import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
 import mongoose from 'mongoose';
+import bcrypt from 'bcryptjs';
 
 const router = express.Router();
 
@@ -549,6 +550,129 @@ router.delete('/teams/:id/players/:playerId', authenticate, async (req: Request,
   } catch (error: any) {
     logger.error('Error removing player:', error);
     res.status(500).json({ error: error.message || 'Failed to remove player' });
+  }
+});
+
+// Bulk create players for a team
+router.post('/teams/:id/players/bulk', authenticate, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const { playerNames } = req.body;
+    const user = (req as any).user;
+    const userRole = user.role;
+
+    if (!playerNames || !Array.isArray(playerNames) || playerNames.length === 0) {
+      res.status(400).json({ error: 'Player names are required' });
+      return;
+    }
+
+    const team = await Team.findById(id).populate('eventId');
+    if (!team || !team.isActive) {
+      res.status(404).json({ error: 'Team not found' });
+      return;
+    }
+
+    // Check permissions
+    const isAdmin = userRole === 'super_admin' || userRole === 'admin';
+    const isCaptain = team.captainId.toString() === user._id.toString();
+    const isViceCaptain = team.viceCaptainId.toString() === user._id.toString();
+    
+    if (!isAdmin && !isCaptain && !isViceCaptain) {
+      res.status(403).json({ error: 'Access denied' });
+      return;
+    }
+
+    const createdPlayers = [];
+    const errors = [];
+
+    // Process each player name
+    for (const name of playerNames) {
+      const trimmedName = name.trim();
+      if (!trimmedName) continue;
+
+      try {
+        // Generate a unique email for the player
+        const baseEmail = trimmedName.toLowerCase().replace(/\s+/g, '.') + '@player.local';
+        let email = baseEmail;
+        let counter = 1;
+        
+        // Check if email already exists and generate a unique one
+        while (await User.findOne({ email })) {
+          email = trimmedName.toLowerCase().replace(/\s+/g, '.') + counter + '@player.local';
+          counter++;
+        }
+
+        // Create the player
+        const newPlayer = new User({
+          name: trimmedName,
+          displayName: trimmedName,
+          email: email,
+          password: await bcrypt.hash('changeme123', 10), // Default password
+          role: 'player',
+          isActive: true,
+          microsoftId: null, // No Microsoft ID for bulk created players
+          teamMemberships: [{
+            teamId: team._id,
+            eventId: team.eventId,
+            role: 'player',
+            joinedAt: new Date()
+          }]
+        });
+
+        await newPlayer.save();
+
+        // Add player to team
+        team.players.push(newPlayer._id);
+
+        // Log the action
+        await AuditLog.create({
+          userId: user._id,
+          action: 'create_player',
+          entity: 'user',
+          entityId: newPlayer._id,
+          details: {
+            playerName: trimmedName,
+            teamId: team._id,
+            teamName: team.name,
+            eventId: team.eventId._id,
+            createdBy: user.name
+          }
+        });
+
+        createdPlayers.push({
+          _id: newPlayer._id,
+          name: newPlayer.name,
+          email: newPlayer.email
+        });
+
+      } catch (error: any) {
+        errors.push({
+          name: trimmedName,
+          error: error.message || 'Failed to create player'
+        });
+      }
+    }
+
+    // Save the team with new players
+    await team.save();
+
+    // Get updated team with populated players
+    const updatedTeam = await Team.findById(id)
+      .populate('players', 'name email displayName')
+      .populate('captainId', 'name email displayName')
+      .populate('viceCaptainId', 'name email displayName');
+
+    res.json({
+      success: true,
+      message: `Created ${createdPlayers.length} players`,
+      createdPlayers,
+      errors: errors.length > 0 ? errors : undefined,
+      team: updatedTeam
+    });
+
+  } catch (error: any) {
+    logger.error('Error creating bulk players:', error);
+    res.status(500).json({ error: error.message || 'Failed to create players' });
   }
 });
 
