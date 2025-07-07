@@ -67,6 +67,25 @@ function TeamDetailContent({ params }: { params: Promise<{ id: string }> }) {
     fetchTeamDetails();
   }, [resolvedParams.id]);
 
+  // Handle escape key for modal
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && showAddPlayerModal) {
+        setShowAddPlayerModal(false);
+        setSelectedPlayer(null);
+        setSearchPlayer('');
+      }
+    };
+    
+    if (showAddPlayerModal) {
+      document.addEventListener('keydown', handleEscape);
+    }
+    
+    return () => {
+      document.removeEventListener('keydown', handleEscape);
+    };
+  }, [showAddPlayerModal]);
+
   const fetchTeamDetails = async () => {
     try {
       const response = await axios.get(
@@ -303,6 +322,7 @@ function TeamDetailContent({ params }: { params: Promise<{ id: string }> }) {
                     {canManageTeam() && (
                       <button
                         onClick={() => {
+                          setError(null); // Clear any previous errors
                           setShowAddPlayerModal(true);
                           fetchAvailableUsers();
                         }}
@@ -401,15 +421,23 @@ function TeamDetailContent({ params }: { params: Promise<{ id: string }> }) {
 
       {/* Add Player Modal */}
       {showAddPlayerModal && (
-        <div className="fixed z-10 inset-0 overflow-y-auto">
+        <div className="fixed z-50 inset-0 overflow-y-auto">
           <div className="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
-            <div className="fixed inset-0 transition-opacity" aria-hidden="true">
+            <div 
+              className="fixed inset-0 transition-opacity" 
+              aria-hidden="true"
+              onClick={() => {
+                setShowAddPlayerModal(false);
+                setSelectedPlayer(null);
+                setSearchPlayer('');
+              }}
+            >
               <div className="absolute inset-0 bg-gray-500 opacity-75"></div>
             </div>
 
             <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
 
-            <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+            <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full relative">
               <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
                 <h3 className="text-lg font-medium text-gray-900 mb-4">Add Player to Team</h3>
                 
@@ -422,6 +450,7 @@ function TeamDetailContent({ params }: { params: Promise<{ id: string }> }) {
                     value={searchPlayer}
                     onChange={(e) => setSearchPlayer(e.target.value)}
                     placeholder="Search by name or email..."
+                    autoFocus
                     className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-gray-900"
                   />
                 </div>
