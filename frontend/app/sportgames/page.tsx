@@ -119,8 +119,8 @@ function SportGamesContent() {
           {/* Header */}
           <div className="flex justify-between items-center mb-6">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900">Sports & Games</h1>
-              <p className="text-gray-600 mt-1">Browse and manage available sports and games</p>
+              <h1 className="text-3xl font-bold text-gray-900">Activity</h1>
+              <p className="text-gray-600 mt-1">Browse and manage available activities</p>
             </div>
             {isAdmin && (
               <Link
@@ -189,9 +189,9 @@ function SportGamesContent() {
               <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
               </svg>
-              <h3 className="mt-2 text-sm font-medium text-gray-900">No sports or games found</h3>
+              <h3 className="mt-2 text-sm font-medium text-gray-900">No activities found</h3>
               <p className="mt-1 text-sm text-gray-500">
-                {isAdmin ? 'Get started by creating a new sport or game.' : 'Check back later for available sports and games.'}
+                {isAdmin ? 'Get started by creating a new activity.' : 'Check back later for available activities.'}
               </p>
               {isAdmin && (
                 <div className="mt-6">
@@ -202,7 +202,7 @@ function SportGamesContent() {
                     <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
                     </svg>
-                    Add First Sport/Game
+                    Add First Activity
                   </Link>
                 </div>
               )}

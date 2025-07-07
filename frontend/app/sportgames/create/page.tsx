@@ -126,7 +126,7 @@ function CreateSportGameContent() {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
                   </svg>
                 </button>
-                <h1 className="text-2xl font-bold text-gray-900">Create New Sport/Game</h1>
+                <h1 className="text-2xl font-bold text-gray-900">Create New Activity</h1>
               </div>
 
               {error && (
@@ -312,7 +312,7 @@ function CreateSportGameContent() {
                         <div className="relative h-48 w-full bg-gray-100 rounded-lg overflow-hidden">
                           <Image
                             src={imagePreview}
-                            alt="Sport/Game preview"
+                            alt="Activity preview"
                             fill
                             className="object-cover"
                           />
@@ -382,7 +382,7 @@ function CreateSportGameContent() {
                     disabled={loading}
                     className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    {loading ? 'Creating...' : 'Create Sport/Game'}
+                    {loading ? 'Creating...' : 'Create Activity'}
                   </button>
                 </div>
               </form>
