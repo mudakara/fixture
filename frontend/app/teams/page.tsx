@@ -213,10 +213,10 @@ function TeamsContent() {
                     {canManageTeam(team) && (
                       <div className="mt-4 flex justify-end">
                         <Link
-                          href={`/teams/${team._id}/players`}
+                          href={`/teams/${team._id}`}
                           className="text-sm text-indigo-600 hover:text-indigo-500"
                         >
-                          Manage Players →
+                          Manage Team →
                         </Link>
                       </div>
                     )}
