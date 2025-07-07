@@ -94,7 +94,6 @@ router.get('/dashboard/stats', authenticate, async (req: Request, res: Response)
         isActive: true
       }).populate('eventId', 'name startDate endDate');
 
-      const teamIds = myTeams.map(t => t._id);
       const totalPlayers = myTeams.reduce((sum, team) => sum + team.players.length + 2, 0); // +2 for captain and vice-captain
 
       stats = {
