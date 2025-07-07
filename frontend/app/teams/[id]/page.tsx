@@ -179,25 +179,25 @@ function TeamDetailContent({ params }: { params: Promise<{ id: string }> }) {
     setError(null);
     
     try {
-      // Split by comma and trim each name
-      const playerNames = bulkPlayerNames
+      // Split by comma and trim each entry
+      const players = bulkPlayerNames
         .split(',')
-        .map(name => name.trim())
-        .filter(name => name.length > 0);
+        .map(entry => entry.trim())
+        .filter(entry => entry.length > 0);
       
-      if (playerNames.length === 0) {
-        setError('Please enter at least one player name');
+      if (players.length === 0) {
+        setError('Please enter at least one player');
         return;
       }
       
       const response = await axios.post(
         `${process.env.NEXT_PUBLIC_API_URL}/teams/${resolvedParams.id}/players/bulk`,
-        { playerNames },
+        { players },
         { withCredentials: true }
       );
       
       if (response.data.errors && response.data.errors.length > 0) {
-        const errorMessages = response.data.errors.map((e: any) => `${e.name}: ${e.error}`).join('\n');
+        const errorMessages = response.data.errors.map((e: any) => `${e.entry}: ${e.error}`).join('\n');
         setError(`Some players could not be created:\n${errorMessages}`);
       }
       
@@ -599,25 +599,29 @@ function TeamDetailContent({ params }: { params: Promise<{ id: string }> }) {
                 
                 <div className="mb-4">
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Enter player names separated by commas
+                    Enter players (comma-separated)
                   </label>
                   <textarea
                     value={bulkPlayerNames}
                     onChange={(e) => setBulkPlayerNames(e.target.value)}
-                    placeholder="John Doe, Jane Smith, Bob Johnson, Alice Williams"
+                    placeholder="John Doe <john@example.com>, Jane Smith <jane@example.com>, Bob Johnson"
                     autoFocus
                     rows={5}
                     className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-gray-900"
                   />
-                  <p className="mt-2 text-sm text-gray-500">
-                    Each player will be created with:
-                    <ul className="list-disc list-inside mt-1">
-                      <li>Email: name@player.local (auto-generated)</li>
+                  <div className="mt-2 text-sm text-gray-500">
+                    <p className="font-medium mb-1">Format:</p>
+                    <ul className="list-disc list-inside space-y-1">
+                      <li><code className="bg-gray-100 px-1 py-0.5 rounded">Name &lt;email&gt;</code> - e.g., John Doe &lt;john@example.com&gt;</li>
+                      <li><code className="bg-gray-100 px-1 py-0.5 rounded">Name</code> - e.g., Bob Johnson (email auto-generated as bob.johnson@player.local)</li>
+                    </ul>
+                    <p className="mt-2 font-medium">Each player will have:</p>
+                    <ul className="list-disc list-inside">
                       <li>Default password: changeme123</li>
                       <li>Role: Player</li>
                       <li>Automatically added to this team</li>
                     </ul>
-                  </p>
+                  </div>
                 </div>
               </div>
 

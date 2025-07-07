@@ -557,12 +557,12 @@ router.delete('/teams/:id/players/:playerId', authenticate, async (req: Request,
 router.post('/teams/:id/players/bulk', authenticate, async (req: Request, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
-    const { playerNames } = req.body;
+    const { players } = req.body;
     const user = (req as any).user;
     const userRole = user.role;
 
-    if (!playerNames || !Array.isArray(playerNames) || playerNames.length === 0) {
-      res.status(400).json({ error: 'Player names are required' });
+    if (!players || !Array.isArray(players) || players.length === 0) {
+      res.status(400).json({ error: 'Players data is required' });
       return;
     }
 
@@ -585,27 +585,52 @@ router.post('/teams/:id/players/bulk', authenticate, async (req: Request, res: R
     const createdPlayers = [];
     const errors = [];
 
-    // Process each player name
-    for (const name of playerNames) {
-      const trimmedName = name.trim();
-      if (!trimmedName) continue;
+    // Process each player entry
+    for (const playerEntry of players) {
+      const trimmedEntry = playerEntry.trim();
+      if (!trimmedEntry) continue;
 
       try {
-        // Generate a unique email for the player
-        const baseEmail = trimmedName.toLowerCase().replace(/\s+/g, '.') + '@player.local';
-        let email = baseEmail;
-        let counter = 1;
+        let name = '';
+        let email = '';
         
-        // Check if email already exists and generate a unique one
-        while (await User.findOne({ email })) {
-          email = trimmedName.toLowerCase().replace(/\s+/g, '.') + counter + '@player.local';
-          counter++;
+        // Parse the entry - expected format: "Name <email>" or just "Name"
+        const emailMatch = trimmedEntry.match(/^(.+?)\s*<(.+?)>$/);
+        
+        if (emailMatch) {
+          // Format: "Name <email>"
+          name = emailMatch[1].trim();
+          email = emailMatch[2].trim();
+        } else {
+          // Just name provided, generate email
+          name = trimmedEntry.trim();
+          const baseEmail = name.toLowerCase().replace(/\s+/g, '.') + '@player.local';
+          email = baseEmail;
+          let counter = 1;
+          
+          // Check if email already exists and generate a unique one
+          while (await User.findOne({ email })) {
+            email = name.toLowerCase().replace(/\s+/g, '.') + counter + '@player.local';
+            counter++;
+          }
+        }
+
+        // Validate email format
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(email)) {
+          throw new Error(`Invalid email format: ${email}`);
+        }
+
+        // Check if email already exists
+        const existingUser = await User.findOne({ email });
+        if (existingUser) {
+          throw new Error(`Email already exists: ${email}`);
         }
 
         // Create the player
         const newPlayer = new User({
-          name: trimmedName,
-          displayName: trimmedName,
+          name: name,
+          displayName: name,
           email: email,
           password: await bcrypt.hash('changeme123', 10), // Default password
           role: 'player',
@@ -631,7 +656,8 @@ router.post('/teams/:id/players/bulk', authenticate, async (req: Request, res: R
           entity: 'user',
           entityId: newPlayer._id,
           details: {
-            playerName: trimmedName,
+            playerName: name,
+            playerEmail: email,
             teamId: team._id,
             teamName: team.name,
             eventId: team.eventId._id,
@@ -647,7 +673,7 @@ router.post('/teams/:id/players/bulk', authenticate, async (req: Request, res: R
 
       } catch (error: any) {
         errors.push({
-          name: trimmedName,
+          entry: trimmedEntry,
           error: error.message || 'Failed to create player'
         });
       }
