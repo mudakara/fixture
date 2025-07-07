@@ -58,7 +58,7 @@ interface EventStats {
   endDate: string;
 }
 
-function EventDetailContent({ params }: { params: Promise<{ id: string }> }) {
+function EventDetailContent({ params }: { params: Promise<{ eventId: string }> }) {
   const resolvedParams = use(params);
   const { user } = useAuth();
   const router = useRouter();
@@ -72,11 +72,11 @@ function EventDetailContent({ params }: { params: Promise<{ id: string }> }) {
   useEffect(() => {
     fetchEventDetails();
     fetchEventStats();
-  }, [resolvedParams.id]);
+  }, [resolvedParams.eventId]);
 
   const fetchEventDetails = async () => {
     try {
-      const response = await axios.get(`${process.env.NEXT_PUBLIC_API_URL}/events/${resolvedParams.id}`, {
+      const response = await axios.get(`${process.env.NEXT_PUBLIC_API_URL}/events/${resolvedParams.eventId}`, {
         withCredentials: true
       });
       setEvent(response.data.event);
@@ -90,7 +90,7 @@ function EventDetailContent({ params }: { params: Promise<{ id: string }> }) {
 
   const fetchEventStats = async () => {
     try {
-      const response = await axios.get(`${process.env.NEXT_PUBLIC_API_URL}/events/${resolvedParams.id}/stats`, {
+      const response = await axios.get(`${process.env.NEXT_PUBLIC_API_URL}/events/${resolvedParams.eventId}/stats`, {
         withCredentials: true
       });
       setStats(response.data.stats);
@@ -330,7 +330,7 @@ function EventDetailContent({ params }: { params: Promise<{ id: string }> }) {
   );
 }
 
-export default function EventDetailPage({ params }: { params: Promise<{ id: string }> }) {
+export default function EventDetailPage({ params }: { params: Promise<{ eventId: string }> }) {
   return (
     <AuthGuard>
       <EventDetailContent params={params} />
