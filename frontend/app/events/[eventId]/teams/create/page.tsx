@@ -32,6 +32,8 @@ function CreateTeamContent({ params }: { params: Promise<{ eventId: string }> })
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [searchCaptain, setSearchCaptain] = useState('');
   const [searchViceCaptain, setSearchViceCaptain] = useState('');
+  const [showCaptainDropdown, setShowCaptainDropdown] = useState(false);
+  const [showViceCaptainDropdown, setShowViceCaptainDropdown] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
     captainId: '',
@@ -131,7 +133,8 @@ function CreateTeamContent({ params }: { params: Promise<{ eventId: string }> })
       );
 
       if (response.data.success) {
-        router.push(`/teams/${response.data.team._id}`);
+        // Navigate back to the event detail page
+        router.push(`/events/${resolvedParams.eventId}`);
       }
     } catch (err: any) {
       setError(err.response?.data?.error || 'Failed to create team');
@@ -281,10 +284,15 @@ function CreateTeamContent({ params }: { params: Promise<{ eventId: string }> })
                       type="text"
                       placeholder="Search for captain..."
                       value={searchCaptain}
-                      onChange={(e) => setSearchCaptain(e.target.value)}
+                      onChange={(e) => {
+                        setSearchCaptain(e.target.value);
+                        setShowCaptainDropdown(true);
+                      }}
+                      onFocus={() => setShowCaptainDropdown(true)}
+                      onBlur={() => setTimeout(() => setShowCaptainDropdown(false), 200)}
                       className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-gray-900"
                     />
-                    {searchCaptain && (
+                    {showCaptainDropdown && searchCaptain && (
                       <div className="absolute z-10 mt-1 w-full bg-white shadow-lg max-h-60 rounded-md py-1 text-base ring-1 ring-black ring-opacity-5 overflow-auto">
                         {filteredCaptainUsers.length === 0 ? (
                           <div className="px-4 py-2 text-sm text-gray-500">No users found</div>
@@ -296,6 +304,7 @@ function CreateTeamContent({ params }: { params: Promise<{ eventId: string }> })
                               onClick={() => {
                                 setFormData(prev => ({ ...prev, captainId: u._id }));
                                 setSearchCaptain(u.displayName || u.name);
+                                setShowCaptainDropdown(false);
                               }}
                               className="w-full text-left px-4 py-2 text-sm text-gray-900 hover:bg-gray-100"
                             >
@@ -323,10 +332,15 @@ function CreateTeamContent({ params }: { params: Promise<{ eventId: string }> })
                       type="text"
                       placeholder="Search for vice-captain..."
                       value={searchViceCaptain}
-                      onChange={(e) => setSearchViceCaptain(e.target.value)}
+                      onChange={(e) => {
+                        setSearchViceCaptain(e.target.value);
+                        setShowViceCaptainDropdown(true);
+                      }}
+                      onFocus={() => setShowViceCaptainDropdown(true)}
+                      onBlur={() => setTimeout(() => setShowViceCaptainDropdown(false), 200)}
                       className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-gray-900"
                     />
-                    {searchViceCaptain && (
+                    {showViceCaptainDropdown && searchViceCaptain && (
                       <div className="absolute z-10 mt-1 w-full bg-white shadow-lg max-h-60 rounded-md py-1 text-base ring-1 ring-black ring-opacity-5 overflow-auto">
                         {filteredViceCaptainUsers.length === 0 ? (
                           <div className="px-4 py-2 text-sm text-gray-500">No users found</div>
@@ -338,6 +352,7 @@ function CreateTeamContent({ params }: { params: Promise<{ eventId: string }> })
                               onClick={() => {
                                 setFormData(prev => ({ ...prev, viceCaptainId: u._id }));
                                 setSearchViceCaptain(u.displayName || u.name);
+                                setShowViceCaptainDropdown(false);
                               }}
                               disabled={u._id === formData.captainId}
                               className={`w-full text-left px-4 py-2 text-sm ${
