@@ -29,6 +29,7 @@ import permissionsRoutes from './routes/permissions';
 import eventsRoutes from './routes/events';
 import teamsRoutes from './routes/teams';
 import dashboardRoutes from './routes/dashboard';
+import sportGamesRoutes from './routes/sportgames';
 import { PermissionService } from './services/permissionService';
 
 const app = express();
@@ -90,6 +91,7 @@ app.use('/api', permissionsRoutes);
 app.use('/api', eventsRoutes);
 app.use('/api', teamsRoutes);
 app.use('/api', dashboardRoutes);
+app.use('/api', sportGamesRoutes);
 
 app.get('/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });

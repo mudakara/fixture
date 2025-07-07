@@ -40,6 +40,7 @@ export default function Header() {
 
   const menuItems = [
     { name: 'Dashboard', href: '/dashboard', roles: ['super_admin', 'admin', 'captain', 'vicecaptain', 'player'] },
+    { name: 'Sports & Games', href: '/sportgames', roles: ['super_admin', 'admin', 'captain', 'vicecaptain', 'player'] },
     { name: 'Events', href: '/events', roles: ['super_admin', 'admin', 'captain', 'vicecaptain', 'player'] },
     { name: 'Teams', href: '/teams', roles: ['super_admin', 'admin', 'captain', 'vicecaptain', 'player'] },
     { name: 'Fixtures', href: '/fixtures', roles: ['super_admin', 'admin', 'captain', 'vicecaptain'] },
