@@ -81,7 +81,7 @@ const SportGameSchema = new Schema<ISportGame>(
 );
 
 // Indexes
-SportGameSchema.index({ title: 1 });
+// Title already has unique: true which creates an index
 SportGameSchema.index({ type: 1 });
 SportGameSchema.index({ category: 1 });
 SportGameSchema.index({ isActive: 1 });

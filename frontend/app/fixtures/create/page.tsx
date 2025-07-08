@@ -41,6 +41,7 @@ function CreateFixtureContent() {
   const { user } = useAuth();
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const [dataLoading, setDataLoading] = useState(true);
   const [events, setEvents] = useState<Event[]>([]);
   const [sportGames, setSportGames] = useState<SportGame[]>([]);
   const [teams, setTeams] = useState<Team[]>([]);
@@ -81,20 +82,34 @@ function CreateFixtureContent() {
   }, [canCreateFixtures, router]);
 
   const fetchData = async () => {
+    setDataLoading(true);
     try {
-      const [eventsRes, sportGamesRes, playersRes, teamsRes] = await Promise.all([
-        axios.get(`${process.env.NEXT_PUBLIC_API_URL}/events`, { withCredentials: true }),
-        axios.get(`${process.env.NEXT_PUBLIC_API_URL}/sportgames`, { withCredentials: true }),
-        axios.get(`${process.env.NEXT_PUBLIC_API_URL}/users?role=player`, { withCredentials: true }),
-        axios.get(`${process.env.NEXT_PUBLIC_API_URL}/teams`, { withCredentials: true })
-      ]);
-      
+      // Fetch data sequentially with small delays to avoid rate limiting
+      const eventsRes = await axios.get(`${process.env.NEXT_PUBLIC_API_URL}/events`, { withCredentials: true });
       setEvents(eventsRes.data.events);
+      
+      // Small delay between requests
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      const sportGamesRes = await axios.get(`${process.env.NEXT_PUBLIC_API_URL}/sportgames`, { withCredentials: true });
       setSportGames(sportGamesRes.data.sportGames);
+      
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      const playersRes = await axios.get(`${process.env.NEXT_PUBLIC_API_URL}/users?role=player`, { withCredentials: true });
       setPlayers(playersRes.data.users || []);
+      
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      const teamsRes = await axios.get(`${process.env.NEXT_PUBLIC_API_URL}/teams`, { withCredentials: true });
       setTeams(teamsRes.data.teams || []);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to fetch data:', error);
+      if (error.response?.status === 429) {
+        alert('Too many requests. Please wait a moment and refresh the page.');
+      }
+    } finally {
+      setDataLoading(false);
     }
   };
 
@@ -157,6 +172,15 @@ function CreateFixtureContent() {
       <Header />
       <div className="max-w-4xl mx-auto py-6 sm:px-6 lg:px-8">
         <div className="px-4 py-6 sm:px-0">
+          {dataLoading ? (
+            <div className="flex justify-center items-center h-64">
+              <div className="text-center">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto"></div>
+                <p className="mt-4 text-gray-600">Loading fixture data...</p>
+              </div>
+            </div>
+          ) : (
+            <>
           {/* Header */}
           <div className="mb-6">
             <Link href="/fixtures" className="text-indigo-600 hover:text-indigo-900 mb-2 inline-block">
@@ -530,6 +554,8 @@ function CreateFixtureContent() {
               </button>
             </div>
           </form>
+          </>
+          )}
         </div>
       </div>
     </div>

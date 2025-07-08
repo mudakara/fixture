@@ -74,6 +74,7 @@ function DashboardContent() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
 
   useEffect(() => {
     fetchDashboardStats();
@@ -86,11 +87,31 @@ function DashboardContent() {
         { withCredentials: true }
       );
       setStats(response.data.stats);
-      setLoading(false);
+      setError(null);
     } catch (err: any) {
       console.error('Dashboard error:', err);
-      const errorMessage = err.response?.data?.message || err.response?.data?.error || 'Failed to fetch dashboard statistics';
+      console.error('Error details:', {
+        status: err.response?.status,
+        data: err.response?.data,
+        url: `${process.env.NEXT_PUBLIC_API_URL}/dashboard/stats`
+      });
+      
+      let errorMessage = 'Failed to fetch dashboard statistics';
+      
+      if (err.response?.status === 401) {
+        errorMessage = 'Please log in to view the dashboard';
+      } else if (err.response?.status === 429) {
+        errorMessage = 'Too many requests. Please wait a moment and refresh the page.';
+      } else if (err.response?.data?.message) {
+        errorMessage = err.response.data.message;
+      } else if (err.response?.data?.error) {
+        errorMessage = err.response.data.error;
+      } else if (!err.response) {
+        errorMessage = 'Cannot connect to server. Please check if the backend is running.';
+      }
+      
       setError(errorMessage);
+    } finally {
       setLoading(false);
     }
   };
@@ -134,8 +155,59 @@ function DashboardContent() {
     return styles[status as keyof typeof styles] || styles.ended;
   };
 
-  if (loading) return <div>Loading...</div>;
-  if (error) return <div>Error: {error}</div>;
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-100">
+        <Header />
+        <div className="flex justify-center items-center h-64">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto"></div>
+            <p className="mt-4 text-gray-600">Loading dashboard...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gray-100">
+        <Header />
+        <div className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
+          <div className="px-4 py-6 sm:px-0">
+            <div className="bg-red-50 border border-red-200 rounded-lg p-6">
+              <div className="flex">
+                <div className="flex-shrink-0">
+                  <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                  </svg>
+                </div>
+                <div className="ml-3">
+                  <h3 className="text-sm font-medium text-red-800">Error loading dashboard</h3>
+                  <div className="mt-2 text-sm text-red-700">
+                    <p>{error}</p>
+                  </div>
+                  <div className="mt-4">
+                    <button
+                      onClick={() => {
+                        setError(null);
+                        setLoading(true);
+                        fetchDashboardStats();
+                      }}
+                      className="bg-red-100 px-3 py-2 rounded-md text-sm font-medium text-red-800 hover:bg-red-200"
+                    >
+                      Try Again
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (!user || !stats) return <div>No data available</div>;
 
   const isAdmin = user.role === 'super_admin' || user.role === 'admin';

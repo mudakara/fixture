@@ -95,9 +95,13 @@ router.get('/dashboard/stats', authenticate, async (req: Request, res: Response)
           { viceCaptainId: userId }
         ],
         isActive: true
-      }).populate('eventId', 'name startDate endDate');
+      }).populate('eventId', 'name startDate endDate').lean();
 
-      const totalPlayers = myTeams.reduce((sum, team) => sum + (team.players?.length || 0) + 2, 0); // +2 for captain and vice-captain
+      const totalPlayers = myTeams.reduce((sum, team) => {
+        // For lean queries, calculate manually
+        const playerArrayLength = Array.isArray(team.players) ? team.players.length : 0;
+        return sum + playerArrayLength;
+      }, 0);
 
       stats = {
         ...stats,
@@ -107,7 +111,7 @@ router.get('/dashboard/stats', authenticate, async (req: Request, res: Response)
             _id: team._id,
             name: team.name,
             role: team.captainId.toString() === userId.toString() ? 'Captain' : 'Vice Captain',
-            playerCount: (team.players?.length || 0) + 2,
+            playerCount: Array.isArray(team.players) ? team.players.length : 0,
             event: {
               _id: (team.eventId as any)._id,
               name: (team.eventId as any).name,
