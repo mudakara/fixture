@@ -737,7 +737,7 @@ router.get('/:id', authenticate, async (req: Request, res: Response): Promise<vo
 
     const fixture = await Fixture.findById(id)
       .populate('eventId', 'name startDate endDate')
-      .populate('sportGameId', 'title type category')
+      .populate('sportGameId', 'title type category isDoubles')
       .populate('createdBy', 'name email');
 
     if (!fixture || !fixture.isActive) {
@@ -784,6 +784,26 @@ router.get('/:id', authenticate, async (req: Request, res: Response): Promise<vo
             path: 'winner',
             model: User,
             select: 'name email displayName teamMemberships'
+          })
+          .populate({
+            path: 'homePartner',
+            model: User,
+            select: 'name email displayName'
+          })
+          .populate({
+            path: 'awayPartner',
+            model: User,
+            select: 'name email displayName'
+          })
+          .populate({
+            path: 'winnerPartner',
+            model: User,
+            select: 'name email displayName'
+          })
+          .populate({
+            path: 'loserPartner',
+            model: User,
+            select: 'name email displayName'
           })
           .populate('nextMatchId')
           .sort({ round: 1, matchNumber: 1 });
@@ -873,7 +893,9 @@ router.get('/:id', authenticate, async (req: Request, res: Response): Promise<vo
     }
 
     // Get participant details based on type
-    let participantDetails = [];
+    let participantDetails: any[] = [];
+    let allEventPlayers: any[] = []; // For doubles fixtures, we need all players from teams
+    
     if (fixture.participantType === 'team') {
       participantDetails = await Team.find({ _id: { $in: fixture.participants } })
         .populate('captainId', 'name email')
@@ -881,18 +903,83 @@ router.get('/:id', authenticate, async (req: Request, res: Response): Promise<vo
     } else {
       participantDetails = await User.find({ _id: { $in: fixture.participants } })
         .select('name email displayName teamMemberships')
-        .populate({
-          path: 'teamMemberships.teamId',
-          select: 'name eventId',
-          match: { eventId: fixture.eventId }
+        .lean();
+      
+      // For doubles fixtures, get ALL players from the teams in this event
+      const sportGame = await SportGame.findById(fixture.sportGameId);
+      if (sportGame && sportGame.isDoubles) {
+        // Get all teams in this event
+        const eventTeams = await Team.find({ 
+          eventId: fixture.eventId,
+          isActive: true 
+        }).select('_id name players');
+        
+        // Get all unique player IDs from these teams
+        const allPlayerIds = new Set<string>();
+        eventTeams.forEach((team: any) => {
+          if (team.players && Array.isArray(team.players)) {
+            team.players.forEach((playerId: any) => {
+              allPlayerIds.add(playerId.toString());
+            });
+          }
         });
+        
+        // Fetch all these players
+        allEventPlayers = await User.find({ 
+          _id: { $in: Array.from(allPlayerIds) } 
+        })
+          .select('name email displayName teamMemberships')
+          .lean();
+        
+        logger.info(`Loaded ${allEventPlayers.length} total event players for doubles fixture`);
+      }
+      
+      // Manually populate team names for better control
+      const eventTeams = await Team.find({ 
+        eventId: fixture.eventId,
+        isActive: true 
+      }).select('_id name');
+      
+      const teamMap = new Map<string, string>();
+      eventTeams.forEach((team: any) => {
+        teamMap.set(team._id.toString(), team.name);
+      });
+      
+      // Process participants to add team names
+      participantDetails = participantDetails.map(participant => {
+        if (participant.teamMemberships && Array.isArray(participant.teamMemberships)) {
+          participant.teamMemberships = participant.teamMemberships.map((tm: any) => ({
+            ...tm,
+            teamId: tm.teamId,
+            teamName: teamMap.get(tm.teamId?.toString()) || null
+          }));
+        }
+        return participant;
+      });
+      
+      // Also process all event players if this is doubles
+      if (allEventPlayers.length > 0) {
+        allEventPlayers = allEventPlayers.map(player => {
+          if (player.teamMemberships && Array.isArray(player.teamMemberships)) {
+            player.teamMemberships = player.teamMemberships.map((tm: any) => ({
+              ...tm,
+              teamId: tm.teamId,
+              teamName: teamMap.get(tm.teamId?.toString()) || null
+            }));
+          }
+          return player;
+        });
+      }
+      
+      logger.info(`Loaded ${participantDetails.length} participants for fixture ${fixture._id}`);
     }
 
     res.json({
       success: true,
       fixture,
       matches,
-      participants: participantDetails
+      participants: participantDetails,
+      allEventPlayers: allEventPlayers // Include all event players for doubles
     });
   } catch (error: any) {
     logger.error('Error fetching fixture details:', {
@@ -929,26 +1016,8 @@ router.put('/:fixtureId/matches/:matchId', authenticate, canManageFixtures, asyn
 
     // Determine winner if match is completed
     if (status === 'completed') {
-      // Determine winner if match is completed
-      if (match.homeScore !== undefined && match.awayScore !== undefined) {
-        if (match.homeScore > match.awayScore) {
-          match.winner = match.homeParticipant;
-          match.loser = match.awayParticipant;
-        } else if (match.awayScore > match.homeScore) {
-          match.winner = match.awayParticipant;
-          match.loser = match.homeParticipant;
-        }
-        // In case of draw, winner might be determined by penalty shootout
-        else if (match.scoreDetails?.penaltyShootout) {
-          if (match.scoreDetails.penaltyShootout.homeScore > match.scoreDetails.penaltyShootout.awayScore) {
-            match.winner = match.homeParticipant;
-            match.loser = match.awayParticipant;
-          } else {
-            match.winner = match.awayParticipant;
-            match.loser = match.homeParticipant;
-          }
-        }
-      }
+      // Use the model's determineWinner method which handles partners
+      match.determineWinner();
       match.actualDate = new Date();
       
       // If knockout, update next match
@@ -958,8 +1027,16 @@ router.put('/:fixtureId/matches/:matchId', authenticate, canManageFixtures, asyn
           // Determine if winner goes to home or away position
           if (!nextMatch.homeParticipant) {
             nextMatch.homeParticipant = match.winner;
+            // Also set partner if this is a doubles match
+            if (match.winnerPartner) {
+              nextMatch.homePartner = match.winnerPartner;
+            }
           } else if (!nextMatch.awayParticipant) {
             nextMatch.awayParticipant = match.winner;
+            // Also set partner if this is a doubles match
+            if (match.winnerPartner) {
+              nextMatch.awayPartner = match.winnerPartner;
+            }
           }
           await nextMatch.save();
         }
@@ -989,6 +1066,77 @@ router.put('/:fixtureId/matches/:matchId', authenticate, canManageFixtures, asyn
   } catch (error: any) {
     logger.error('Error updating match:', error);
     res.status(500).json({ error: 'Failed to update match' });
+  }
+});
+
+// Update match partners (for doubles)
+router.put('/:fixtureId/matches/:matchId/partners', authenticate, canManageFixtures, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { fixtureId, matchId } = req.params;
+    const { homePartner, awayPartner } = req.body;
+    const user = (req as any).user;
+
+    const match = await Match.findOne({ _id: matchId, fixtureId });
+    if (!match) {
+      res.status(404).json({ error: 'Match not found' });
+      return;
+    }
+
+    // Check if fixture is for doubles
+    const fixture = await Fixture.findById(fixtureId).populate('sportGameId');
+    if (!fixture) {
+      res.status(404).json({ error: 'Fixture not found' });
+      return;
+    }
+
+    const sportGame = fixture.sportGameId as any;
+    if (!sportGame?.isDoubles) {
+      res.status(400).json({ error: 'This fixture is not for doubles' });
+      return;
+    }
+
+    // Update partners
+    if (homePartner !== undefined) {
+      match.homePartner = homePartner || undefined;
+    }
+    if (awayPartner !== undefined) {
+      match.awayPartner = awayPartner || undefined;
+    }
+
+    // If match is completed and has partners, update winner/loser partners
+    if (match.status === 'completed' && match.winner) {
+      if (match.winner.toString() === match.homeParticipant?.toString()) {
+        match.winnerPartner = match.homePartner;
+        match.loserPartner = match.awayPartner;
+      } else if (match.winner.toString() === match.awayParticipant?.toString()) {
+        match.winnerPartner = match.awayPartner;
+        match.loserPartner = match.homePartner;
+      }
+    }
+
+    await match.save();
+
+    // Create audit log
+    await AuditLog.create({
+      userId: user._id,
+      action: 'update',
+      entity: 'match',
+      entityId: matchId,
+      details: {
+        fixtureId,
+        partnersUpdated: true,
+        homePartner,
+        awayPartner
+      }
+    });
+
+    res.json({
+      success: true,
+      match
+    });
+  } catch (error: any) {
+    logger.error('Error updating match partners:', error);
+    res.status(500).json({ error: 'Failed to update match partners' });
   }
 });
 

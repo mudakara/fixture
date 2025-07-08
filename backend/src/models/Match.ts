@@ -6,15 +6,22 @@ export interface IMatch extends Document {
   matchNumber: number; // Match number within the round
   homeParticipant?: mongoose.Types.ObjectId; // Player or Team ID
   awayParticipant?: mongoose.Types.ObjectId; // Player or Team ID
+  homePartner?: mongoose.Types.ObjectId; // Partner for doubles fixtures
+  awayPartner?: mongoose.Types.ObjectId; // Partner for doubles fixtures
   homeScore?: number;
   awayScore?: number;
   winner?: mongoose.Types.ObjectId;
   loser?: mongoose.Types.ObjectId;
+  winnerPartner?: mongoose.Types.ObjectId; // Winner's partner for doubles
+  loserPartner?: mongoose.Types.ObjectId; // Loser's partner for doubles
   status: 'scheduled' | 'in_progress' | 'completed' | 'cancelled' | 'postponed' | 'walkover';
   scheduledDate?: Date;
   actualDate?: Date;
   venue?: string;
   duration?: number; // Actual duration in minutes
+  
+  // Methods
+  determineWinner(): void;
   
   // For knockout tournaments
   nextMatchId?: mongoose.Types.ObjectId; // Winner goes to this match
@@ -65,6 +72,14 @@ const MatchSchema = new Schema<IMatch>(
       type: Schema.Types.ObjectId
       // Reference will be determined dynamically based on fixture's participantType
     },
+    homePartner: {
+      type: Schema.Types.ObjectId,
+      ref: 'User' // Partners are always users/players
+    },
+    awayPartner: {
+      type: Schema.Types.ObjectId,
+      ref: 'User' // Partners are always users/players
+    },
     homeScore: {
       type: Number,
       min: 0
@@ -80,6 +95,14 @@ const MatchSchema = new Schema<IMatch>(
     loser: {
       type: Schema.Types.ObjectId
       // Reference will be determined dynamically based on fixture's participantType
+    },
+    winnerPartner: {
+      type: Schema.Types.ObjectId,
+      ref: 'User'
+    },
+    loserPartner: {
+      type: Schema.Types.ObjectId,
+      ref: 'User'
     },
     status: {
       type: String,
@@ -152,18 +175,46 @@ MatchSchema.methods.determineWinner = function() {
     if (this.homeScore > this.awayScore) {
       this.winner = this.homeParticipant;
       this.loser = this.awayParticipant;
+      // Handle doubles partners
+      if (this.homePartner) {
+        this.winnerPartner = this.homePartner;
+      }
+      if (this.awayPartner) {
+        this.loserPartner = this.awayPartner;
+      }
     } else if (this.awayScore > this.homeScore) {
       this.winner = this.awayParticipant;
       this.loser = this.homeParticipant;
+      // Handle doubles partners
+      if (this.awayPartner) {
+        this.winnerPartner = this.awayPartner;
+      }
+      if (this.homePartner) {
+        this.loserPartner = this.homePartner;
+      }
     }
     // In case of draw, winner might be determined by penalty shootout
     else if (this.scoreDetails?.penaltyShootout) {
       if (this.scoreDetails.penaltyShootout.homeScore > this.scoreDetails.penaltyShootout.awayScore) {
         this.winner = this.homeParticipant;
         this.loser = this.awayParticipant;
+        // Handle doubles partners
+        if (this.homePartner) {
+          this.winnerPartner = this.homePartner;
+        }
+        if (this.awayPartner) {
+          this.loserPartner = this.awayPartner;
+        }
       } else {
         this.winner = this.awayParticipant;
         this.loser = this.homeParticipant;
+        // Handle doubles partners
+        if (this.awayPartner) {
+          this.winnerPartner = this.awayPartner;
+        }
+        if (this.homePartner) {
+          this.loserPartner = this.homePartner;
+        }
       }
     }
   }

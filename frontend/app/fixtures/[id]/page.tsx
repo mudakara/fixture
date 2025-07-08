@@ -28,6 +28,7 @@ interface Fixture {
     title: string;
     type: string;
     category: string;
+    isDoubles?: boolean;
   };
   format: 'knockout' | 'roundrobin';
   participantType: 'player' | 'team';
@@ -50,9 +51,13 @@ interface Match {
   matchNumber: number;
   homeParticipant?: any;
   awayParticipant?: any;
+  homePartner?: any;
+  awayPartner?: any;
   homeScore?: number;
   awayScore?: number;
   winner?: any;
+  winnerPartner?: any;
+  loserPartner?: any;
   status: string;
   scheduledDate?: string;
   actualDate?: string;
@@ -67,6 +72,11 @@ interface Participant {
   email?: string;
   displayName?: string;
   teamLogo?: string;
+  teamMemberships?: Array<{
+    teamId: string | { _id: string; name: string };
+    eventId: string;
+    role: string;
+  }>;
 }
 
 function FixtureDetailContent({ params }: { params: Promise<Params> }) {
@@ -76,6 +86,7 @@ function FixtureDetailContent({ params }: { params: Promise<Params> }) {
   const [fixture, setFixture] = useState<Fixture | null>(null);
   const [matches, setMatches] = useState<Match[]>([]);
   const [participants, setParticipants] = useState<Participant[]>([]);
+  const [allEventPlayers, setAllEventPlayers] = useState<Participant[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedMatch, setSelectedMatch] = useState<Match | null>(null);
@@ -85,7 +96,9 @@ function FixtureDetailContent({ params }: { params: Promise<Params> }) {
     homeScore: 0,
     awayScore: 0,
     status: 'scheduled',
-    notes: ''
+    notes: '',
+    homePartner: '',
+    awayPartner: ''
   });
 
   const canManageFixtures = user?.role === 'super_admin' || user?.role === 'admin' || user?.role === 'captain' || user?.role === 'vicecaptain';
@@ -93,6 +106,21 @@ function FixtureDetailContent({ params }: { params: Promise<Params> }) {
   
   // Check if any matches have been played
   const hasPlayedMatches = matches.some(m => m.status === 'completed' || m.status === 'in_progress');
+  
+  // Check if this is a doubles fixture
+  const isDoubles = fixture?.sportGameId?.isDoubles === true;
+  
+  // Debug logging
+  useEffect(() => {
+    if (fixture) {
+      console.log('Fixture details:', {
+        sportGameId: fixture.sportGameId,
+        isDoubles: fixture.sportGameId?.isDoubles,
+        participantType: fixture.participantType,
+        isDoublesCheck: isDoubles
+      });
+    }
+  }, [fixture, isDoubles]);
 
   useEffect(() => {
     fetchFixtureDetails();
@@ -145,6 +173,22 @@ function FixtureDetailContent({ params }: { params: Promise<Params> }) {
       setFixture(response.data.fixture);
       setMatches(response.data.matches || []);
       setParticipants(response.data.participants || []);
+      setAllEventPlayers(response.data.allEventPlayers || []);
+      
+      // Debug participants data
+      console.log('=== FIXTURE DETAILS DEBUG ===');
+      console.log('Participants data:', response.data.participants);
+      console.log('Participants length:', response.data.participants?.length);
+      console.log('All event players:', response.data.allEventPlayers);
+      console.log('All event players length:', response.data.allEventPlayers?.length);
+      if (response.data.participants?.length > 0) {
+        console.log('First participant full object:', JSON.stringify(response.data.participants[0], null, 2));
+        console.log('First participant teamMemberships:', response.data.participants[0].teamMemberships);
+      }
+      console.log('Fixture sport game:', response.data.fixture.sportGameId);
+      console.log('Is doubles fixture?', response.data.fixture.sportGameId?.isDoubles);
+      console.log('Fixture event ID:', response.data.fixture.eventId);
+      console.log('=== END DEBUG ===');
       
       // Debug: Check if matches have nextMatchId
       console.log('Matches data:', response.data.matches?.map((m: any) => ({
@@ -202,12 +246,18 @@ function FixtureDetailContent({ params }: { params: Promise<Params> }) {
 
   const handleMatchClick = (match: Match) => {
     if (canManageFixtures && match.status !== 'walkover') {
+      console.log('Match clicked:', match);
+      console.log('Current participants state:', participants);
+      console.log('Is doubles?', isDoubles);
+      
       setSelectedMatch(match);
       setUpdateForm({
         homeScore: match.homeScore || 0,
         awayScore: match.awayScore || 0,
         status: match.status,
-        notes: match.notes || ''
+        notes: match.notes || '',
+        homePartner: match.homePartner?._id || '',
+        awayPartner: match.awayPartner?._id || ''
       });
       setShowUpdateModal(true);
     }
@@ -217,17 +267,188 @@ function FixtureDetailContent({ params }: { params: Promise<Params> }) {
     if (!selectedMatch) return;
 
     try {
+      // Update match scores and status
       await axios.put(
         `${process.env.NEXT_PUBLIC_API_URL}/fixtures/${fixture?._id}/matches/${selectedMatch._id}`,
-        updateForm,
+        {
+          homeScore: updateForm.homeScore,
+          awayScore: updateForm.awayScore,
+          status: updateForm.status,
+          notes: updateForm.notes
+        },
         { withCredentials: true }
       );
+      
+      // Update partners if this is a doubles fixture
+      if (isDoubles && (updateForm.homePartner !== selectedMatch.homePartner?._id || updateForm.awayPartner !== selectedMatch.awayPartner?._id)) {
+        await axios.put(
+          `${process.env.NEXT_PUBLIC_API_URL}/fixtures/${fixture?._id}/matches/${selectedMatch._id}/partners`,
+          {
+            homePartner: updateForm.homePartner || null,
+            awayPartner: updateForm.awayPartner || null
+          },
+          { withCredentials: true }
+        );
+      }
       
       setShowUpdateModal(false);
       fetchFixtureDetails(); // Refresh data
     } catch (err: any) {
       alert(err.response?.data?.error || 'Failed to update match');
     }
+  };
+
+  const getAvailablePartners = (participantId: string | undefined, side: 'home' | 'away'): Participant[] => {
+    console.log('=== GET AVAILABLE PARTNERS DEBUG ===');
+    console.log('Input:', { participantId, side });
+    
+    // Use allEventPlayers if available (for doubles), otherwise use participants
+    const playerPool = allEventPlayers.length > 0 ? allEventPlayers : participants;
+    
+    if (!participantId || !fixture || !playerPool || playerPool.length === 0) {
+      console.log('Missing required data:', { 
+        participantId, 
+        hasFixture: !!fixture, 
+        playerPoolLength: playerPool?.length,
+        isUsingAllEventPlayers: allEventPlayers.length > 0
+      });
+      return [];
+    }
+    
+    // Find the participant who is selecting a partner
+    const participant = playerPool.find(p => p._id === participantId);
+    if (!participant) {
+      console.log('ERROR: Participant not found in player pool');
+      console.log('Looking in pool of', playerPool.length, 'players');
+      return [];
+    }
+    
+    console.log('Found participant:', {
+      name: participant.name,
+      _id: participant._id,
+      teamMemberships: participant.teamMemberships
+    });
+    
+    // Get participant's team for this event
+    let participantTeamId: string | null = null;
+    if (participant.teamMemberships && Array.isArray(participant.teamMemberships)) {
+      const membership = participant.teamMemberships.find((tm: any) => {
+        const tmEventId = typeof tm.eventId === 'string' ? tm.eventId : tm.eventId?._id;
+        const fixtureEventId = typeof fixture.eventId === 'string' ? fixture.eventId : fixture.eventId._id;
+        return tmEventId === fixtureEventId;
+      });
+      
+      if (membership) {
+        participantTeamId = typeof membership.teamId === 'string' ? membership.teamId : membership.teamId?._id;
+        console.log('Participant is from team:', participantTeamId);
+      }
+    }
+    
+    if (!participantTeamId) {
+      console.log('Participant has no team for this event');
+      return [];
+    }
+    
+    // Get all players from the participant's team in this event
+    const teamPlayers = playerPool.filter(p => {
+      if (p.teamMemberships && Array.isArray(p.teamMemberships)) {
+        const membership = p.teamMemberships.find((tm: any) => {
+          const tmEventId = typeof tm.eventId === 'string' ? tm.eventId : tm.eventId?._id;
+          const fixtureEventId = typeof fixture.eventId === 'string' ? fixture.eventId : fixture.eventId._id;
+          return tmEventId === fixtureEventId;
+        });
+        
+        if (membership) {
+          const playerTeamId = typeof membership.teamId === 'string' ? membership.teamId : membership.teamId?._id;
+          return playerTeamId === participantTeamId;
+        }
+      }
+      return false;
+    });
+    
+    console.log(`Found ${teamPlayers.length} players from the same team`);
+    
+    // Get all players from this team who are already in ANY match in this fixture
+    const teamPlayersInMatches = new Set<string>();
+    
+    if (matches && Array.isArray(matches)) {
+      matches.forEach(match => {
+        // Check home participant
+        if (match.homeParticipant?._id) {
+          const homePlayer = playerPool.find(p => p._id === match.homeParticipant._id);
+          if (homePlayer?.teamMemberships) {
+            const membership = homePlayer.teamMemberships.find((tm: any) => {
+              const tmEventId = typeof tm.eventId === 'string' ? tm.eventId : tm.eventId?._id;
+              const fixtureEventId = typeof fixture.eventId === 'string' ? fixture.eventId : fixture.eventId._id;
+              return tmEventId === fixtureEventId;
+            });
+            
+            if (membership) {
+              const teamId = typeof membership.teamId === 'string' ? membership.teamId : membership.teamId?._id;
+              if (teamId === participantTeamId) {
+                teamPlayersInMatches.add(match.homeParticipant._id);
+              }
+            }
+          }
+        }
+        
+        // Check away participant
+        if (match.awayParticipant?._id) {
+          const awayPlayer = playerPool.find(p => p._id === match.awayParticipant._id);
+          if (awayPlayer?.teamMemberships) {
+            const membership = awayPlayer.teamMemberships.find((tm: any) => {
+              const tmEventId = typeof tm.eventId === 'string' ? tm.eventId : tm.eventId?._id;
+              const fixtureEventId = typeof fixture.eventId === 'string' ? fixture.eventId : fixture.eventId._id;
+              return tmEventId === fixtureEventId;
+            });
+            
+            if (membership) {
+              const teamId = typeof membership.teamId === 'string' ? membership.teamId : membership.teamId?._id;
+              if (teamId === participantTeamId) {
+                teamPlayersInMatches.add(match.awayParticipant._id);
+              }
+            }
+          }
+        }
+        
+        // Also check partners
+        if (match.homePartner?._id) teamPlayersInMatches.add(match.homePartner._id);
+        if (match.awayPartner?._id) teamPlayersInMatches.add(match.awayPartner._id);
+      });
+    }
+    
+    // Don't exclude the current partner being edited
+    if (selectedMatch) {
+      if (side === 'home' && selectedMatch.homePartner?._id) {
+        teamPlayersInMatches.delete(selectedMatch.homePartner._id);
+      } else if (side === 'away' && selectedMatch.awayPartner?._id) {
+        teamPlayersInMatches.delete(selectedMatch.awayPartner._id);
+      }
+    }
+    
+    console.log('Team players already in matches:', Array.from(teamPlayersInMatches));
+    
+    // Filter to get available partners
+    const availablePartners = teamPlayers.filter(p => {
+      // Skip the participant themselves
+      if (p._id === participantId) {
+        console.log(`Skipping ${p.name} - same as participant`);
+        return false;
+      }
+      
+      // Skip if already in a match
+      if (teamPlayersInMatches.has(p._id)) {
+        console.log(`Skipping ${p.name} - already in a match in this fixture`);
+        return false;
+      }
+      
+      console.log(`Including ${p.name} as available partner`);
+      return true;
+    });
+    
+    console.log('Final available partners:', availablePartners.map(p => ({ name: p.name, _id: p._id })));
+    console.log('=== END PARTNER DEBUG ===');
+    return availablePartners;
   };
 
   const handleRandomize = async () => {
@@ -295,8 +516,8 @@ function FixtureDetailContent({ params }: { params: Promise<Params> }) {
       })));
     }
 
-    const matchHeight = fixture?.participantType === 'player' ? 150 : 125;
-    const matchWidth = 300;
+    const matchHeight = fixture?.participantType === 'player' ? (isDoubles ? 170 : 150) : 125;
+    const matchWidth = isDoubles ? 350 : 300;
     const roundGap = 120;
     const matchVerticalGap = 30;
 
@@ -699,10 +920,36 @@ function FixtureDetailContent({ params }: { params: Promise<Params> }) {
                               ? 'bg-green-100 border border-green-300' 
                               : 'hover:bg-gray-50'
                           }`}>
-                            <div className="flex flex-col truncate max-w-[200px]">
-                              <span className="text-sm font-medium text-gray-900" title={match.homeParticipant?.name || match.homeParticipant?.displayName || 'TBD'}>
-                                {match.homeParticipant?.name || match.homeParticipant?.displayName || 'TBD'}
-                              </span>
+                            <div className="flex flex-col flex-1">
+                              <div className="flex items-center gap-1 flex-wrap">
+                                <span className="text-sm font-medium text-gray-900" title={match.homeParticipant?.name || match.homeParticipant?.displayName || 'TBD'}>
+                                  {match.homeParticipant?.name || match.homeParticipant?.displayName || 'TBD'}
+                                </span>
+                                {isDoubles && match.homeParticipant && (
+                                  <>
+                                    {match.homePartner ? (
+                                      <>
+                                        <span className="text-sm text-gray-600">&</span>
+                                        <span className="text-sm font-medium text-gray-900" title={match.homePartner?.name || match.homePartner?.displayName}>
+                                          {match.homePartner?.name || match.homePartner?.displayName}
+                                        </span>
+                                      </>
+                                    ) : (
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          console.log('Add partner clicked:', match);
+                                          handleMatchClick(match);
+                                        }}
+                                        className="ml-1 px-2 py-0.5 text-xs bg-indigo-100 text-indigo-700 hover:bg-indigo-200 rounded font-medium transition-colors"
+                                        title="Add partner"
+                                      >
+                                        + Add Partner
+                                      </button>
+                                    )}
+                                  </>
+                                )}
+                              </div>
                               {fixture?.participantType === 'player' && getPlayerTeamName(match.homeParticipant) && (
                                 <span className="text-xs text-gray-500 italic">{getPlayerTeamName(match.homeParticipant)}</span>
                               )}
@@ -719,10 +966,36 @@ function FixtureDetailContent({ params }: { params: Promise<Params> }) {
                               ? 'bg-green-100 border border-green-300' 
                               : 'hover:bg-gray-50'
                           }`}>
-                            <div className="flex flex-col truncate max-w-[200px]">
-                              <span className="text-sm font-medium text-gray-900" title={match.awayParticipant?.name || match.awayParticipant?.displayName || 'TBD'}>
-                                {match.awayParticipant?.name || match.awayParticipant?.displayName || 'TBD'}
-                              </span>
+                            <div className="flex flex-col flex-1">
+                              <div className="flex items-center gap-1 flex-wrap">
+                                <span className="text-sm font-medium text-gray-900" title={match.awayParticipant?.name || match.awayParticipant?.displayName || 'TBD'}>
+                                  {match.awayParticipant?.name || match.awayParticipant?.displayName || 'TBD'}
+                                </span>
+                                {isDoubles && match.awayParticipant && (
+                                  <>
+                                    {match.awayPartner ? (
+                                      <>
+                                        <span className="text-sm text-gray-600">&</span>
+                                        <span className="text-sm font-medium text-gray-900" title={match.awayPartner?.name || match.awayPartner?.displayName}>
+                                          {match.awayPartner?.name || match.awayPartner?.displayName}
+                                        </span>
+                                      </>
+                                    ) : (
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          console.log('Add partner clicked:', match);
+                                          handleMatchClick(match);
+                                        }}
+                                        className="ml-1 px-2 py-0.5 text-xs bg-indigo-100 text-indigo-700 hover:bg-indigo-200 rounded font-medium transition-colors"
+                                        title="Add partner"
+                                      >
+                                        + Add Partner
+                                      </button>
+                                    )}
+                                  </>
+                                )}
+                              </div>
                               {fixture?.participantType === 'player' && getPlayerTeamName(match.awayParticipant) && (
                                 <span className="text-xs text-gray-500 italic">{getPlayerTeamName(match.awayParticipant)}</span>
                               )}
@@ -855,7 +1128,14 @@ function FixtureDetailContent({ params }: { params: Promise<Params> }) {
               </div>
               <div>
                 <p className="text-sm font-medium text-gray-700">Sport/Game</p>
-                <p className="font-medium text-gray-900">{fixture.sportGameId.title} ({fixture.sportGameId.type})</p>
+                <p className="font-medium text-gray-900">
+                  {fixture.sportGameId.title} ({fixture.sportGameId.type})
+                  {fixture.sportGameId.isDoubles && (
+                    <span className="ml-2 px-2 py-0.5 text-xs bg-purple-100 text-purple-800 rounded-full">
+                      Doubles
+                    </span>
+                  )}
+                </p>
               </div>
               <div>
                 <p className="text-sm font-medium text-gray-700">Participants</p>
@@ -971,6 +1251,65 @@ function FixtureDetailContent({ params }: { params: Promise<Params> }) {
                   <option value="cancelled">Cancelled</option>
                 </select>
               </div>
+              
+              {/* Partner Selection for Doubles */}
+              {isDoubles && fixture?.participantType === 'player' && (
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-800 mb-1">
+                      {selectedMatch.homeParticipant?.name || 'Home'} Partner
+                    </label>
+                    <select
+                      value={updateForm.homePartner}
+                      onChange={(e) => setUpdateForm({ ...updateForm, homePartner: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500 text-gray-900"
+                    >
+                      <option value="">Select Partner</option>
+                      {participants && participants.length > 0 ? (
+                        getAvailablePartners(selectedMatch.homeParticipant?._id, 'home').length > 0 ? (
+                          getAvailablePartners(selectedMatch.homeParticipant?._id, 'home')
+                            .map(p => (
+                              <option key={p._id} value={p._id}>
+                                {p.name || p.displayName}
+                              </option>
+                            ))
+                        ) : (
+                          <option disabled>No available partners</option>
+                        )
+                      ) : (
+                        <option disabled>Loading participants...</option>
+                      )}
+                    </select>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-800 mb-1">
+                      {selectedMatch.awayParticipant?.name || 'Away'} Partner
+                    </label>
+                    <select
+                      value={updateForm.awayPartner}
+                      onChange={(e) => setUpdateForm({ ...updateForm, awayPartner: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500 text-gray-900"
+                    >
+                      <option value="">Select Partner</option>
+                      {participants && participants.length > 0 ? (
+                        getAvailablePartners(selectedMatch.awayParticipant?._id, 'away').length > 0 ? (
+                          getAvailablePartners(selectedMatch.awayParticipant?._id, 'away')
+                            .map(p => (
+                              <option key={p._id} value={p._id}>
+                                {p.name || p.displayName}
+                              </option>
+                            ))
+                        ) : (
+                          <option disabled>No available partners</option>
+                        )
+                      ) : (
+                        <option disabled>Loading participants...</option>
+                      )}
+                    </select>
+                  </div>
+                </div>
+              )}
               
               <div className="grid grid-cols-2 gap-4">
                 <div>
