@@ -165,64 +165,168 @@ function FixtureDetailContent({ params }: { params: Promise<Params> }) {
     const roundMatches: { [key: number]: Match[] } = {};
     
     for (let i = 1; i <= rounds; i++) {
-      roundMatches[i] = matches.filter(m => m.round === i);
+      roundMatches[i] = matches.filter(m => m.round === i).sort((a, b) => a.matchNumber - b.matchNumber);
     }
 
+    const matchHeight = 125;
+    const matchWidth = 300;
+    const roundGap = 120;
+    const matchVerticalGap = 30;
+
+    // Calculate total height needed
+    const totalHeight = Math.pow(2, rounds - 1) * (matchHeight + matchVerticalGap);
+
     return (
-      <div className="overflow-x-auto">
-        <div className="flex space-x-8 p-4">
-          {Object.entries(roundMatches).map(([round, roundMatchList]) => (
-            <div key={round} className="flex-shrink-0">
-              <h3 className="text-base font-semibold text-gray-900 mb-4">
-                {parseInt(round) === rounds ? 'Final' : 
-                 parseInt(round) === rounds - 1 && rounds > 1 ? 'Semi-Finals' :
-                 parseInt(round) === rounds - 2 && rounds > 2 ? 'Quarter-Finals' :
-                 `Round ${round}`}
-              </h3>
-              <div className="space-y-4">
-                {roundMatchList.map((match) => (
-                  <div
-                    key={match._id}
-                    onClick={() => handleMatchClick(match)}
-                    className={`bg-white border rounded-lg p-4 w-64 ${
-                      canManageFixtures && match.status !== 'walkover' ? 'cursor-pointer hover:shadow-md' : ''
-                    }`}
-                  >
-                    <div className="flex justify-between items-center mb-2">
-                      <span className="text-sm font-medium text-gray-700">Match {match.matchNumber}</span>
-                      <span className={`text-xs px-2 py-1 rounded-full ${getStatusBadgeColor(match.status)}`}>
-                        {match.status}
-                      </span>
-                    </div>
-                    
-                    <div className="space-y-2">
-                      <div className={`flex justify-between items-center p-2 rounded ${
-                        match.winner && match.homeParticipant?._id === match.winner._id ? 'bg-green-50 font-semibold' : ''
-                      }`}>
-                        <span className="text-sm text-gray-900 font-medium">
-                          {match.homeParticipant?.name || match.homeParticipant?.displayName || 'TBD'}
-                        </span>
-                        {match.homeScore !== undefined && (
-                          <span className="text-sm font-bold text-gray-900">{match.homeScore}</span>
-                        )}
+      <div className="overflow-x-auto pb-8">
+        <div className="relative" style={{ minHeight: `${totalHeight + 100}px` }}>
+          {Object.entries(roundMatches).map(([round, roundMatchList], roundIndex) => {
+            const roundNumber = parseInt(round);
+            const matchesInThisRound = roundMatchList.length;
+            const verticalSpacing = totalHeight / matchesInThisRound;
+            
+            return (
+              <div key={round} className="absolute" style={{ left: `${roundIndex * (matchWidth + roundGap)}px` }}>
+                <h3 className="text-base font-semibold text-gray-900 mb-4 text-center">
+                  {roundNumber === rounds ? 'Final' : 
+                   roundNumber === rounds - 1 && rounds > 1 ? 'Semi-Finals' :
+                   roundNumber === rounds - 2 && rounds > 2 ? 'Quarter-Finals' :
+                   `Round ${round}`}
+                </h3>
+                
+                {roundMatchList.map((match, matchIndex) => {
+                  const centerY = (matchIndex + 0.5) * verticalSpacing;
+                  const topPosition = centerY - matchHeight / 2;
+                  
+                  return (
+                    <div key={match._id} className="absolute" style={{ top: `${topPosition + 40}px`, width: `${matchWidth}px` }}>
+                      {/* Connecting lines for non-final rounds */}
+                      {roundNumber < rounds && (
+                        <>
+                          {/* Horizontal line from match center */}
+                          <div
+                            className="absolute"
+                            style={{
+                              left: `${matchWidth}px`,
+                              top: `${matchHeight / 2}px`,
+                              width: `${roundGap / 2}px`,
+                              height: '2px',
+                              backgroundColor: match.winner ? '#10b981' : '#d1d5db'
+                            }}
+                          />
+                          
+                          {/* Connection dot at match edge */}
+                          <div
+                            className="absolute"
+                            style={{
+                              left: `${matchWidth - 4}px`,
+                              top: `${matchHeight / 2 - 4}px`,
+                              width: '8px',
+                              height: '8px',
+                              borderRadius: '50%',
+                              backgroundColor: match.winner ? '#10b981' : '#6b7280',
+                              zIndex: 10
+                            }}
+                          />
+                          
+                          {/* For pairs of matches, draw vertical connector */}
+                          {matchIndex % 2 === 0 && matchIndex < matchesInThisRound - 1 && (
+                            <>
+                              {/* Vertical line connecting two matches */}
+                              <div
+                                className="absolute"
+                                style={{
+                                  left: `${matchWidth + roundGap / 2}px`,
+                                  top: `${matchHeight / 2}px`,
+                                  width: '2px',
+                                  height: `${verticalSpacing}px`,
+                                  backgroundColor: '#d1d5db'
+                                }}
+                              />
+                              
+                              {/* Horizontal line to next round */}
+                              <div
+                                className="absolute"
+                                style={{
+                                  left: `${matchWidth + roundGap / 2}px`,
+                                  top: `${matchHeight / 2 + verticalSpacing / 2}px`,
+                                  width: `${roundGap / 2}px`,
+                                  height: '2px',
+                                  backgroundColor: '#d1d5db'
+                                }}
+                              />
+                            </>
+                          )}
+                          
+                          {/* For single advancing matches (like when there's a bye) */}
+                          {matchesInThisRound === 1 && (
+                            <div
+                              className="absolute"
+                              style={{
+                                left: `${matchWidth + roundGap / 2}px`,
+                                top: `${matchHeight / 2}px`,
+                                width: `${roundGap / 2}px`,
+                                height: '2px',
+                                backgroundColor: '#d1d5db'
+                              }}
+                            />
+                          )}
+                        </>
+                      )}
+                      {/* Match card */}
+                      <div
+                        onClick={() => handleMatchClick(match)}
+                        className={`relative bg-white border-2 rounded-lg p-3 shadow-sm transition-all ${
+                          canManageFixtures && match.status !== 'walkover' 
+                            ? 'cursor-pointer hover:shadow-lg hover:border-indigo-300' 
+                            : ''
+                        } ${
+                          match.status === 'completed' ? 'border-green-200' : 'border-gray-200'
+                        }`}
+                        style={{ height: `${matchHeight}px`, zIndex: 5 }}
+                      >
+                        <div className="flex justify-between items-center mb-2">
+                          <span className="text-xs font-medium text-gray-600">Match {match.matchNumber}</span>
+                          <span className={`text-xs px-2 py-1 rounded-full ${getStatusBadgeColor(match.status)}`}>
+                            {match.status === 'walkover' ? 'Bye' : match.status}
+                          </span>
+                        </div>
+                        
+                        <div className="space-y-1">
+                          <div className={`flex justify-between items-center px-2 py-1 rounded ${
+                            match.winner && match.homeParticipant?._id === match.winner._id 
+                              ? 'bg-green-100 border border-green-300' 
+                              : 'hover:bg-gray-50'
+                          }`}>
+                            <span className="text-sm font-medium text-gray-900 truncate max-w-[200px]" title={match.homeParticipant?.name || match.homeParticipant?.displayName || 'TBD'}>
+                              {match.homeParticipant?.name || match.homeParticipant?.displayName || 'TBD'}
+                            </span>
+                            {match.homeScore !== undefined && (
+                              <span className="text-sm font-bold text-gray-900 ml-2">{match.homeScore}</span>
+                            )}
+                          </div>
+                          
+                          <div className="border-t border-gray-100"></div>
+                          
+                          <div className={`flex justify-between items-center px-2 py-1 rounded ${
+                            match.winner && match.awayParticipant?._id === match.winner._id 
+                              ? 'bg-green-100 border border-green-300' 
+                              : 'hover:bg-gray-50'
+                          }`}>
+                            <span className="text-sm font-medium text-gray-900 truncate max-w-[200px]" title={match.awayParticipant?.name || match.awayParticipant?.displayName || 'TBD'}>
+                              {match.awayParticipant?.name || match.awayParticipant?.displayName || 'TBD'}
+                            </span>
+                            {match.awayScore !== undefined && (
+                              <span className="text-sm font-bold text-gray-900 ml-2">{match.awayScore}</span>
+                            )}
+                          </div>
+                        </div>
                       </div>
-                      
-                      <div className={`flex justify-between items-center p-2 rounded ${
-                        match.winner && match.awayParticipant?._id === match.winner._id ? 'bg-green-50 font-semibold' : ''
-                      }`}>
-                        <span className="text-sm text-gray-900 font-medium">
-                          {match.awayParticipant?.name || match.awayParticipant?.displayName || 'TBD'}
-                        </span>
-                        {match.awayScore !== undefined && (
-                          <span className="text-sm font-bold text-gray-900">{match.awayScore}</span>
-                        )}
-                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
     );
@@ -380,17 +484,44 @@ function FixtureDetailContent({ params }: { params: Promise<Params> }) {
               <h2 className="text-lg font-medium text-gray-900">
                 {fixture.format === 'knockout' ? 'Tournament Bracket' : 'Matches'}
               </h2>
-              {fixture.format === 'roundrobin' && (
-                <Link
-                  href={`/fixtures/${fixture._id}/standings`}
-                  className="text-indigo-600 hover:text-indigo-900 text-sm font-medium"
-                >
-                  View Standings →
-                </Link>
-              )}
+              <div className="flex items-center space-x-4">
+                {fixture.format === 'knockout' && (
+                  <div className="flex items-center space-x-3 text-sm">
+                    <div className="flex items-center">
+                      <div className="w-4 h-4 bg-green-100 border border-green-300 rounded mr-1"></div>
+                      <span className="text-gray-600">Winner</span>
+                    </div>
+                    <div className="flex items-center">
+                      <div className="w-4 h-4 bg-gray-100 border border-gray-300 rounded mr-1"></div>
+                      <span className="text-gray-600">Pending</span>
+                    </div>
+                    <div className="flex items-center">
+                      <svg className="w-4 h-4 mr-1">
+                        <line x1="0" y1="8" x2="16" y2="8" stroke="#10b981" strokeWidth="2" />
+                      </svg>
+                      <span className="text-gray-600">Winner Path</span>
+                    </div>
+                  </div>
+                )}
+                {fixture.format === 'roundrobin' && (
+                  <Link
+                    href={`/fixtures/${fixture._id}/standings`}
+                    className="text-indigo-600 hover:text-indigo-900 text-sm font-medium"
+                  >
+                    View Standings →
+                  </Link>
+                )}
+              </div>
             </div>
             
-            {fixture.format === 'knockout' ? renderKnockoutBracket() : renderRoundRobinMatches()}
+            {fixture.format === 'knockout' ? (
+              <div className="relative">
+                <div className="absolute top-0 right-0 text-xs text-gray-500 bg-gray-50 px-3 py-1 rounded">
+                  Scroll horizontally to view all rounds →
+                </div>
+                {renderKnockoutBracket()}
+              </div>
+            ) : renderRoundRobinMatches()}
           </div>
         </div>
       </div>

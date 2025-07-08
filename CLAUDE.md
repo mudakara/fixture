@@ -282,6 +282,10 @@ npm run dev         # Start both frontend (port 3500) and backend (port 3501)
    - Sortable table columns
    - Loading states and error handling
    - Filter panels for lists
+   - Tournament bracket with connecting lines and visual progression
+   - Interactive match cards with hover effects
+   - Winner path highlighting in tournament brackets
+   - Connection dots for visual clarity in brackets
 
 9. **Logging System**
    - All actions logged to files in `backend/logs/`
@@ -418,7 +422,19 @@ Required API Permissions:
 
 ## Recent Updates
 
-### Latest Bug Fixes and Improvements (Current Session)
+### Latest UI/UX Improvements (Current Session)
+- **Enhanced Tournament Bracket Visualization**:
+  - Added connecting lines between matches using CSS-based divs
+  - Lines properly connect from center of each match card to the next round
+  - Winner paths highlighted in green (#10b981)
+  - Added connection dots at line endpoints for clarity
+  - Increased match card height to 125px for better readability
+  - Card width set to 300px with proper name truncation
+  - Added tooltips for long participant names
+  - Removed CSS animations that were causing rendering issues
+  - Lines use absolute positioning for precise alignment
+
+### Bug Fixes and Improvements
 - **Fixed Team Selection Bug in Fixtures**: Teams are now loaded upfront and filtered client-side
 - **Fixed Fixture Routes 404 Error**: Corrected API endpoint routing configuration
 - **Created Fixture Detail Pages**: Added `/fixtures/[id]` and `/fixtures/[id]/standings` pages
