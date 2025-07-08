@@ -35,6 +35,12 @@ interface Player {
   name: string;
   email: string;
   displayName?: string;
+  role?: string;
+  teamMemberships?: Array<{
+    teamId: string | { _id: string; name: string };
+    eventId: string;
+    role: string;
+  }>;
 }
 
 function CreateFixtureContent() {
@@ -96,8 +102,13 @@ function CreateFixtureContent() {
       
       await new Promise(resolve => setTimeout(resolve, 100));
       
-      const playersRes = await axios.get(`${process.env.NEXT_PUBLIC_API_URL}/users?role=player`, { withCredentials: true });
-      setPlayers(playersRes.data.users || []);
+      const playersRes = await axios.get(`${process.env.NEXT_PUBLIC_API_URL}/users`, { withCredentials: true });
+      // Filter to exclude super_admin and admin on the frontend
+      const allUsers = playersRes.data.users || [];
+      setPlayers(allUsers.filter((user: Player) => 
+        user.role !== 'super_admin' && 
+        user.role !== 'admin'
+      ));
       
       await new Promise(resolve => setTimeout(resolve, 100));
       
@@ -165,7 +176,82 @@ function CreateFixtureContent() {
         const teamEventId = typeof team.eventId === 'string' ? team.eventId : team.eventId._id;
         return teamEventId === formData.eventId;
       })
-    : players;
+    : players.filter(player => 
+        player.role !== 'super_admin' && 
+        player.role !== 'admin'
+      );
+
+  // Organize players by teams for the selected event
+  const getPlayersByTeam = (): Array<{ teamId: string; teamName: string; players: Player[] }> => {
+    if (formData.participantType !== 'player' || !formData.eventId) return [];
+    
+    const teamMap: { [teamId: string]: { teamName: string; players: Player[] } } = {};
+    const playersWithoutTeam: Player[] = [];
+    
+    // Get teams for this event and sort alphabetically
+    const eventTeams = teams
+      .filter(team => {
+        const teamEventId = typeof team.eventId === 'string' ? team.eventId : team.eventId._id;
+        return teamEventId === formData.eventId;
+      })
+      .sort((a, b) => a.name.localeCompare(b.name));
+    
+    // Initialize team map
+    eventTeams.forEach(team => {
+      teamMap[team._id] = { teamName: team.name, players: [] };
+    });
+    
+    // Organize players by their teams
+    const playerList = availableParticipants as Player[];
+    playerList.forEach((player) => {
+      let addedToTeam = false;
+      
+      if (player.teamMemberships) {
+        for (const membership of player.teamMemberships) {
+          const teamId = typeof membership.teamId === 'string' 
+            ? membership.teamId 
+            : membership.teamId._id;
+          
+          if (membership.eventId === formData.eventId && teamMap[teamId]) {
+            teamMap[teamId].players.push(player);
+            addedToTeam = true;
+            break;
+          }
+        }
+      }
+      
+      if (!addedToTeam) {
+        playersWithoutTeam.push(player);
+      }
+    });
+    
+    // Create sorted array instead of returning object to maintain order
+    const sortedTeams: Array<{ teamId: string; teamName: string; players: Player[] }> = [];
+    
+    // Add teams in alphabetical order (already sorted)
+    eventTeams.forEach(team => {
+      sortedTeams.push({
+        teamId: team._id,
+        teamName: teamMap[team._id].teamName,
+        players: teamMap[team._id].players.sort((a, b) => 
+          (a.name || a.displayName || '').localeCompare(b.name || b.displayName || '')
+        )
+      });
+    });
+    
+    // Add players without teams at the end if any
+    if (playersWithoutTeam.length > 0) {
+      sortedTeams.push({
+        teamId: 'no-team',
+        teamName: 'Players without team',
+        players: playersWithoutTeam.sort((a, b) => 
+          (a.name || a.displayName || '').localeCompare(b.name || b.displayName || '')
+        )
+      });
+    }
+    
+    return sortedTeams;
+  };
 
   return (
     <div className="min-h-screen bg-gray-100">
@@ -508,7 +594,8 @@ function CreateFixtureContent() {
                   No {formData.participantType === 'team' ? 'teams' : 'players'} available for the selected event.
                   {formData.participantType === 'team' && ' Please create teams for this event first.'}
                 </p>
-              ) : (
+              ) : formData.participantType === 'team' ? (
+                // Team selection - existing layout
                 <div className="max-h-64 overflow-y-auto border border-gray-200 rounded-md">
                   {availableParticipants.map((participant: any) => (
                     <label
@@ -523,18 +610,97 @@ function CreateFixtureContent() {
                       />
                       <span className="ml-3 text-sm text-gray-900">
                         {participant.name || participant.displayName}
-                        {formData.participantType === 'player' && participant.email && (
-                          <span className="text-gray-500 ml-2">({participant.email})</span>
-                        )}
                       </span>
                     </label>
                   ))}
                 </div>
+              ) : (
+                // Player selection - organized by teams
+                <div className="max-h-96 overflow-y-auto border border-gray-200 rounded-md p-4">
+                  <div className={`grid gap-4 ${
+                    getPlayersByTeam().length <= 2 
+                      ? 'grid-cols-1 md:grid-cols-2' 
+                      : getPlayersByTeam().length <= 3
+                      ? 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3'
+                      : 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4'
+                  }`}>
+                    {getPlayersByTeam().map(({ teamId, teamName, players }) => {
+                      const teamPlayerIds = players.map(p => p._id);
+                      const selectedFromTeam = teamPlayerIds.filter(id => formData.participants.includes(id));
+                      const isAllSelected = selectedFromTeam.length === teamPlayerIds.length && teamPlayerIds.length > 0;
+                      
+                      return (
+                        <div key={teamId} className="bg-gray-50 rounded-lg p-3">
+                          <div className="flex items-center justify-between mb-2 border-b border-gray-200 pb-1">
+                            <h3 className="font-medium text-sm text-gray-900">
+                              {teamName} ({selectedFromTeam.length}/{players.length})
+                            </h3>
+                            {players.length > 0 && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (isAllSelected) {
+                                    // Deselect all from this team
+                                    setFormData({
+                                      ...formData,
+                                      participants: formData.participants.filter(id => !teamPlayerIds.includes(id))
+                                    });
+                                  } else {
+                                    // Select all from this team
+                                    const newParticipants = [...formData.participants];
+                                    teamPlayerIds.forEach(id => {
+                                      if (!newParticipants.includes(id)) {
+                                        newParticipants.push(id);
+                                      }
+                                    });
+                                    setFormData({ ...formData, participants: newParticipants });
+                                  }
+                                }}
+                                className="text-xs text-indigo-600 hover:text-indigo-500"
+                              >
+                                {isAllSelected ? 'Deselect all' : 'Select all'}
+                              </button>
+                            )}
+                          </div>
+                          <div className="space-y-1">
+                            {players.map((player) => (
+                              <label
+                                key={player._id}
+                                className="flex items-center hover:bg-white rounded px-2 py-1 cursor-pointer transition-colors"
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={formData.participants.includes(player._id)}
+                                  onChange={() => handleParticipantToggle(player._id)}
+                                  className="h-4 w-4 text-indigo-600 border-gray-300 rounded"
+                                />
+                                <span className="ml-2 text-sm text-gray-700 truncate" title={player.name || player.displayName}>
+                                  {player.name || player.displayName}
+                                </span>
+                              </label>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
               )}
               
-              <p className="mt-2 text-sm text-gray-500">
-                Minimum {formData.format === 'knockout' ? '2' : '2'} participants required
-              </p>
+              <div className="mt-4 flex items-center justify-between">
+                <p className="text-sm text-gray-500">
+                  Minimum {formData.format === 'knockout' ? '2' : '2'} participants required
+                </p>
+                {formData.participantType === 'player' && formData.participants.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setFormData({ ...formData, participants: [] })}
+                    className="text-sm text-indigo-600 hover:text-indigo-500"
+                  >
+                    Clear selection
+                  </button>
+                )}
+              </div>
             </div>
 
             {/* Submit Buttons */}
