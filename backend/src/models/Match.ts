@@ -58,12 +58,12 @@ const MatchSchema = new Schema<IMatch>(
       min: 1
     },
     homeParticipant: {
-      type: Schema.Types.ObjectId,
-      refPath: 'participantModel'
+      type: Schema.Types.ObjectId
+      // Reference will be determined dynamically based on fixture's participantType
     },
     awayParticipant: {
-      type: Schema.Types.ObjectId,
-      refPath: 'participantModel'
+      type: Schema.Types.ObjectId
+      // Reference will be determined dynamically based on fixture's participantType
     },
     homeScore: {
       type: Number,
@@ -74,12 +74,12 @@ const MatchSchema = new Schema<IMatch>(
       min: 0
     },
     winner: {
-      type: Schema.Types.ObjectId,
-      refPath: 'participantModel'
+      type: Schema.Types.ObjectId
+      // Reference will be determined dynamically based on fixture's participantType
     },
     loser: {
-      type: Schema.Types.ObjectId,
-      refPath: 'participantModel'
+      type: Schema.Types.ObjectId
+      // Reference will be determined dynamically based on fixture's participantType
     },
     status: {
       type: String,
@@ -145,11 +145,6 @@ MatchSchema.index({ awayParticipant: 1 });
 MatchSchema.index({ status: 1 });
 MatchSchema.index({ scheduledDate: 1 });
 
-// Virtual to determine participant model based on fixture
-MatchSchema.virtual('participantModel').get(function() {
-  // This will be populated from the fixture's participantType
-  return 'User'; // Default, will be overridden in queries
-});
 
 // Method to determine match outcome
 MatchSchema.methods.determineWinner = function() {

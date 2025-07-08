@@ -27,7 +27,7 @@ interface SportGame {
 interface Team {
   _id: string;
   name: string;
-  eventId: string;
+  eventId: string | { _id: string; name: string; startDate: string; endDate: string };
 }
 
 interface Player {
@@ -146,7 +146,10 @@ function CreateFixtureContent() {
 
   // Get available participants based on type and event
   const availableParticipants = formData.participantType === 'team' 
-    ? teams.filter(team => team.eventId === formData.eventId)
+    ? teams.filter(team => {
+        const teamEventId = typeof team.eventId === 'string' ? team.eventId : team.eventId._id;
+        return teamEventId === formData.eventId;
+      })
     : players;
 
   return (
@@ -479,7 +482,8 @@ function CreateFixtureContent() {
                 <p className="text-gray-500">Please select an event first</p>
               ) : availableParticipants.length === 0 ? (
                 <p className="text-gray-500">
-                  No {formData.participantType === 'team' ? 'teams' : 'players'} available for the selected event
+                  No {formData.participantType === 'team' ? 'teams' : 'players'} available for the selected event.
+                  {formData.participantType === 'team' && ' Please create teams for this event first.'}
                 </p>
               ) : (
                 <div className="max-h-64 overflow-y-auto border border-gray-200 rounded-md">

@@ -71,6 +71,11 @@ TeamSchema.index({ players: 1 });
 
 // Ensure captain and vice-captain are always in players array
 TeamSchema.pre('save', function(next) {
+  // Initialize players array if it doesn't exist
+  if (!this.players) {
+    this.players = [];
+  }
+  
   if (!this.players.some(player => player.equals(this.captainId))) {
     this.players.push(this.captainId);
   }
@@ -82,11 +87,14 @@ TeamSchema.pre('save', function(next) {
 
 // Virtual for player count
 TeamSchema.virtual('playerCount').get(function() {
-  return this.players.length;
+  return this.players?.length || 0;
 });
 
 // Method to add a player
 TeamSchema.methods.addPlayer = function(playerId: mongoose.Types.ObjectId) {
+  if (!this.players) {
+    this.players = [];
+  }
   if (!this.players.some((player: mongoose.Types.ObjectId) => player.equals(playerId))) {
     this.players.push(playerId);
     return this.save();
@@ -101,7 +109,7 @@ TeamSchema.methods.removePlayer = function(playerId: mongoose.Types.ObjectId) {
     throw new Error('Cannot remove captain or vice-captain from team');
   }
   
-  this.players = this.players.filter((player: mongoose.Types.ObjectId) => !player.equals(playerId));
+  this.players = (this.players || []).filter((player: mongoose.Types.ObjectId) => !player.equals(playerId));
   return this.save();
 };
 

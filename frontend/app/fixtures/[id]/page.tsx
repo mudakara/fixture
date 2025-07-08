@@ -86,6 +86,10 @@ function FixtureDetailContent({ params }: { params: Promise<Params> }) {
   });
 
   const canManageFixtures = user?.role === 'super_admin' || user?.role === 'admin' || user?.role === 'captain' || user?.role === 'vicecaptain';
+  const isSuperAdmin = user?.role === 'super_admin';
+  
+  // Check if any matches have been played
+  const hasPlayedMatches = matches.some(m => m.status === 'completed' || m.status === 'in_progress');
 
   useEffect(() => {
     fetchFixtureDetails();
@@ -99,11 +103,13 @@ function FixtureDetailContent({ params }: { params: Promise<Params> }) {
       );
       
       setFixture(response.data.fixture);
-      setMatches(response.data.matches);
-      setParticipants(response.data.participants);
+      setMatches(response.data.matches || []);
+      setParticipants(response.data.participants || []);
       setLoading(false);
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Failed to fetch fixture details');
+      console.error('Error fetching fixture details:', err);
+      const errorMessage = err.response?.data?.message || err.response?.data?.error || 'Failed to fetch fixture details';
+      setError(errorMessage);
       setLoading(false);
     }
   };
@@ -160,6 +166,42 @@ function FixtureDetailContent({ params }: { params: Promise<Params> }) {
     }
   };
 
+  const handleRandomize = async () => {
+    if (!fixture) return;
+    
+    const confirmMessage = 'Are you sure you want to randomize the bracket? This will regenerate all matches with new random pairings.';
+    if (!confirm(confirmMessage)) return;
+
+    try {
+      const response = await axios.post(
+        `${process.env.NEXT_PUBLIC_API_URL}/fixtures/${fixture._id}/randomize`,
+        {},
+        { withCredentials: true }
+      );
+      
+      if (response.data.success) {
+        alert('Bracket randomized successfully!');
+        fetchFixtureDetails(); // Refresh data
+      }
+    } catch (err: any) {
+      alert(err.response?.data?.error || 'Failed to randomize bracket');
+    }
+  };
+
+  // Helper function to get team name for a player
+  const getPlayerTeamName = (participant: any) => {
+    if (!participant || !participant.teamMemberships || fixture?.participantType !== 'player') {
+      return null;
+    }
+    
+    // Find the team membership for this event
+    const membership = participant.teamMemberships.find((tm: any) => 
+      tm.teamId && tm.teamId.eventId === fixture.eventId._id
+    );
+    
+    return membership?.teamId?.name || null;
+  };
+
   const renderKnockoutBracket = () => {
     const rounds = Math.max(...matches.map(m => m.round));
     const roundMatches: { [key: number]: Match[] } = {};
@@ -168,7 +210,7 @@ function FixtureDetailContent({ params }: { params: Promise<Params> }) {
       roundMatches[i] = matches.filter(m => m.round === i).sort((a, b) => a.matchNumber - b.matchNumber);
     }
 
-    const matchHeight = 125;
+    const matchHeight = fixture?.participantType === 'player' ? 150 : 125;
     const matchWidth = 300;
     const roundGap = 120;
     const matchVerticalGap = 30;
@@ -197,8 +239,20 @@ function FixtureDetailContent({ params }: { params: Promise<Params> }) {
                   const centerY = (matchIndex + 0.5) * verticalSpacing;
                   const topPosition = centerY - matchHeight / 2;
                   
+                  const isFinalMatch = roundNumber === rounds;
+                  const isChampion = isFinalMatch && match.status === 'completed' && match.winner;
+                  
                   return (
                     <div key={match._id} className="absolute" style={{ top: `${topPosition + 40}px`, width: `${matchWidth}px` }}>
+                      {/* Winner badge for final match */}
+                      {isChampion && (
+                        <div className="absolute -top-8 left-1/2 transform -translate-x-1/2 flex items-center space-x-1 bg-yellow-100 text-yellow-800 px-3 py-1 rounded-full text-sm font-semibold">
+                          <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                            <path d="M5 3a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2V5a2 2 0 00-2-2H5zM5 11a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2v-2a2 2 0 00-2-2H5zM11 5a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V5zM14 11a1 1 0 011 1v1h1a1 1 0 110 2h-1v1a1 1 0 11-2 0v-1h-1a1 1 0 110-2h1v-1a1 1 0 011-1z"/>
+                          </svg>
+                          <span>Champion</span>
+                        </div>
+                      )}
                       {/* Connecting lines for non-final rounds */}
                       {roundNumber < rounds && (
                         <>
@@ -280,6 +334,7 @@ function FixtureDetailContent({ params }: { params: Promise<Params> }) {
                             ? 'cursor-pointer hover:shadow-lg hover:border-indigo-300' 
                             : ''
                         } ${
+                          isChampion ? 'border-yellow-400 bg-yellow-50 shadow-lg' :
                           match.status === 'completed' ? 'border-green-200' : 'border-gray-200'
                         }`}
                         style={{ height: `${matchHeight}px`, zIndex: 5 }}
@@ -297,9 +352,14 @@ function FixtureDetailContent({ params }: { params: Promise<Params> }) {
                               ? 'bg-green-100 border border-green-300' 
                               : 'hover:bg-gray-50'
                           }`}>
-                            <span className="text-sm font-medium text-gray-900 truncate max-w-[200px]" title={match.homeParticipant?.name || match.homeParticipant?.displayName || 'TBD'}>
-                              {match.homeParticipant?.name || match.homeParticipant?.displayName || 'TBD'}
-                            </span>
+                            <div className="flex flex-col truncate max-w-[200px]">
+                              <span className="text-sm font-medium text-gray-900" title={match.homeParticipant?.name || match.homeParticipant?.displayName || 'TBD'}>
+                                {match.homeParticipant?.name || match.homeParticipant?.displayName || 'TBD'}
+                              </span>
+                              {fixture.participantType === 'player' && getPlayerTeamName(match.homeParticipant) && (
+                                <span className="text-xs text-gray-600">({getPlayerTeamName(match.homeParticipant)})</span>
+                              )}
+                            </div>
                             {match.homeScore !== undefined && (
                               <span className="text-sm font-bold text-gray-900 ml-2">{match.homeScore}</span>
                             )}
@@ -312,9 +372,14 @@ function FixtureDetailContent({ params }: { params: Promise<Params> }) {
                               ? 'bg-green-100 border border-green-300' 
                               : 'hover:bg-gray-50'
                           }`}>
-                            <span className="text-sm font-medium text-gray-900 truncate max-w-[200px]" title={match.awayParticipant?.name || match.awayParticipant?.displayName || 'TBD'}>
-                              {match.awayParticipant?.name || match.awayParticipant?.displayName || 'TBD'}
-                            </span>
+                            <div className="flex flex-col truncate max-w-[200px]">
+                              <span className="text-sm font-medium text-gray-900" title={match.awayParticipant?.name || match.awayParticipant?.displayName || 'TBD'}>
+                                {match.awayParticipant?.name || match.awayParticipant?.displayName || 'TBD'}
+                              </span>
+                              {fixture.participantType === 'player' && getPlayerTeamName(match.awayParticipant) && (
+                                <span className="text-xs text-gray-600">({getPlayerTeamName(match.awayParticipant)})</span>
+                              )}
+                            </div>
                             {match.awayScore !== undefined && (
                               <span className="text-sm font-bold text-gray-900 ml-2">{match.awayScore}</span>
                             )}
@@ -447,7 +512,7 @@ function FixtureDetailContent({ params }: { params: Promise<Params> }) {
               </div>
               <div>
                 <p className="text-sm font-medium text-gray-700">Participants</p>
-                <p className="font-medium text-gray-900">{participants.length} {fixture.participantType === 'team' ? 'Teams' : 'Players'}</p>
+                <p className="font-medium text-gray-900">{participants?.length || 0} {fixture.participantType === 'team' ? 'Teams' : 'Players'}</p>
               </div>
               <div>
                 <p className="text-sm font-medium text-gray-700">Start Date</p>
@@ -470,7 +535,7 @@ function FixtureDetailContent({ params }: { params: Promise<Params> }) {
           <div className="bg-white shadow rounded-lg p-6 mb-6">
             <h2 className="text-lg font-medium text-gray-900 mb-4">Participants</h2>
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-              {participants.map((participant) => (
+              {participants?.map((participant) => (
                 <div key={participant._id} className="flex items-center space-x-2 p-2 bg-gray-50 rounded">
                   <span className="text-sm text-gray-900 font-medium">{participant.name || participant.displayName}</span>
                 </div>
@@ -485,6 +550,18 @@ function FixtureDetailContent({ params }: { params: Promise<Params> }) {
                 {fixture.format === 'knockout' ? 'Tournament Bracket' : 'Matches'}
               </h2>
               <div className="flex items-center space-x-4">
+                {/* Randomize button for super admin on knockout fixtures with teams */}
+                {isSuperAdmin && fixture.format === 'knockout' && fixture.participantType === 'team' && !hasPlayedMatches && (
+                  <button
+                    onClick={handleRandomize}
+                    className="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 flex items-center space-x-2"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                    <span>Randomize Bracket</span>
+                  </button>
+                )}
                 {fixture.format === 'knockout' && (
                   <div className="flex items-center space-x-3 text-sm">
                     <div className="flex items-center">

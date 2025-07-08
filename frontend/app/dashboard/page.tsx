@@ -88,7 +88,9 @@ function DashboardContent() {
       setStats(response.data.stats);
       setLoading(false);
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Failed to fetch dashboard statistics');
+      console.error('Dashboard error:', err);
+      const errorMessage = err.response?.data?.message || err.response?.data?.error || 'Failed to fetch dashboard statistics';
+      setError(errorMessage);
       setLoading(false);
     }
   };

@@ -3,6 +3,7 @@ import { authenticate } from '../middleware/auth';
 import User from '../models/User';
 import Event from '../models/Event';
 import Team from '../models/Team';
+import Fixture from '../models/Fixture';
 import AuditLog from '../models/AuditLog';
 import logger from '../utils/logger';
 
@@ -39,6 +40,7 @@ router.get('/dashboard/stats', authenticate, async (req: Request, res: Response)
     if (userRole === 'super_admin' || userRole === 'admin') {
       const totalUsers = await User.countDocuments({ isActive: true });
       const totalTeams = await Team.countDocuments({ isActive: true });
+      const totalFixtures = await Fixture.countDocuments({ isActive: true });
       const recentActivities = await AuditLog.find()
         .populate('userId', 'name email')
         .sort({ timestamp: -1 })
@@ -56,6 +58,7 @@ router.get('/dashboard/stats', authenticate, async (req: Request, res: Response)
           totalUsers,
           totalTeams,
           totalEvents: events.length,
+          totalFixtures,
           upcomingEvents: upcomingEvents.length,
           ongoingEvents: ongoingEvents.length,
           pastEvents: pastEvents.length
@@ -94,7 +97,7 @@ router.get('/dashboard/stats', authenticate, async (req: Request, res: Response)
         isActive: true
       }).populate('eventId', 'name startDate endDate');
 
-      const totalPlayers = myTeams.reduce((sum, team) => sum + team.players.length + 2, 0); // +2 for captain and vice-captain
+      const totalPlayers = myTeams.reduce((sum, team) => sum + (team.players?.length || 0) + 2, 0); // +2 for captain and vice-captain
 
       stats = {
         ...stats,
@@ -104,7 +107,7 @@ router.get('/dashboard/stats', authenticate, async (req: Request, res: Response)
             _id: team._id,
             name: team.name,
             role: team.captainId.toString() === userId.toString() ? 'Captain' : 'Vice Captain',
-            playerCount: team.players.length + 2,
+            playerCount: (team.players?.length || 0) + 2,
             event: {
               _id: (team.eventId as any)._id,
               name: (team.eventId as any).name,
@@ -176,8 +179,15 @@ router.get('/dashboard/stats', authenticate, async (req: Request, res: Response)
     });
 
   } catch (error: any) {
-    logger.error('Error fetching dashboard stats:', error);
-    res.status(500).json({ error: 'Failed to fetch dashboard statistics' });
+    logger.error('Error fetching dashboard stats:', {
+      error: error.message,
+      stack: error.stack,
+      user: (req as any).user?.email
+    });
+    res.status(500).json({ 
+      error: 'Failed to fetch dashboard statistics',
+      message: error.message 
+    });
   }
 });
 

@@ -422,17 +422,55 @@ Required API Permissions:
 
 ## Recent Updates
 
-### Latest UI/UX Improvements (Current Session)
+### v0.2 Updates (Latest)
+- **Randomize Bracket Feature**:
+  - Added "Randomize Bracket" button for super admins on knockout fixtures
+  - Only available for team-based knockout tournaments before any matches are played
+  - Creates new random pairings with proper Fisher-Yates shuffle algorithm
+  - API endpoint validates permissions and fixture state before randomizing
+  - Audit log tracks randomization actions
+  - Purple button with refresh icon in tournament bracket header
+
+- **Team Names in Player Brackets**:
+  - Player fixtures now show team names below player names in brackets
+  - Backend populates team memberships for the specific event
+  - Match cards display format: Player Name / (Team Name) in smaller gray text
+  - Increased player fixture card height to 150px to accommodate team info
+  - Only shows teams from the current event
+
+- **Bug Fixes**:
+  - Fixed "Cannot read properties of undefined (reading 'length')" error in Team model
+  - Added safety checks for undefined players array in Team virtual fields and methods
+  - Fixed fixture details API to properly handle team/player population
+  - Resolved TypeScript compilation errors with unused variables
+  - Fixed draft badge still showing on fixture cards
+
+- **Performance Improvements**:
+  - Added debouncing to fixture page filters (300ms delay)
+  - Better error handling for rate limit (429) errors
+  - Improved loading states to prevent duplicate requests
+  - Clear user-friendly messages for rate limit errors
+
+- **Edit Pages Created**:
+  - Created sport/game edit page at `/sportgames/[id]/edit`
+  - Created team edit page at `/teams/[id]/edit`
+  - Both pages support image upload/update functionality
+  - Role-based access control (admins can edit all fields, captains limited)
+
+- **API Additions**:
+  - `POST /api/fixtures/:id/randomize` - Randomize knockout bracket (Super Admin only)
+
+### v0.1 Updates
 - **Enhanced Tournament Bracket Visualization**:
   - Added connecting lines between matches using CSS-based divs
   - Lines properly connect from center of each match card to the next round
   - Winner paths highlighted in green (#10b981)
   - Added connection dots at line endpoints for clarity
-  - Increased match card height to 125px for better readability
+  - Finals winner gets special "Champion" badge with trophy icon
+  - Champion match card has golden border and background
+  - Match card heights: 150px for players (with teams), 125px for team fixtures
   - Card width set to 300px with proper name truncation
   - Added tooltips for long participant names
-  - Removed CSS animations that were causing rendering issues
-  - Lines use absolute positioning for precise alignment
 
 ### Bug Fixes and Improvements
 - **Fixed Team Selection Bug in Fixtures**: Teams are now loaded upfront and filtered client-side

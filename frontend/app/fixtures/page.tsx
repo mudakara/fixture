@@ -4,7 +4,7 @@ import { AuthGuard } from '@/components/AuthGuard';
 import Header from '@/components/Header';
 import { useAuth } from '@/hooks/useAuth';
 import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import axios from 'axios';
 import Link from 'next/link';
 
@@ -72,8 +72,9 @@ function FixturesContent() {
     }
   };
 
-  const fetchFixtures = async () => {
+  const fetchFixtures = useCallback(async () => {
     try {
+      setLoading(true);
       const params: any = {};
       if (eventFilter !== 'all') params.eventId = eventFilter;
       if (formatFilter !== 'all') params.format = formatFilter;
@@ -87,16 +88,26 @@ function FixturesContent() {
         }
       );
       setFixtures(response.data.fixtures);
-      setLoading(false);
+      setError(null);
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Failed to fetch fixtures');
+      if (err.response?.status === 429) {
+        setError('Too many requests. Please wait a moment and try again.');
+      } else {
+        setError(err.response?.data?.error || 'Failed to fetch fixtures');
+      }
+    } finally {
       setLoading(false);
     }
-  };
+  }, [eventFilter, formatFilter, statusFilter]);
 
   useEffect(() => {
-    fetchFixtures();
-  }, [eventFilter, formatFilter, statusFilter]);
+    // Add a small delay to debounce rapid filter changes
+    const timeoutId = setTimeout(() => {
+      fetchFixtures();
+    }, 300);
+
+    return () => clearTimeout(timeoutId);
+  }, [fetchFixtures]);
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('en-US', {
@@ -239,9 +250,11 @@ function FixturesContent() {
                         <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getFormatBadgeColor(fixture.format)}`}>
                           {fixture.format === 'knockout' ? 'Knockout' : 'Round Robin'}
                         </span>
-                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusBadgeColor(fixture.status)}`}>
-                          {fixture.status.replace('_', ' ')}
-                        </span>
+                        {fixture.status !== 'draft' && (
+                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusBadgeColor(fixture.status)}`}>
+                            {fixture.status.replace('_', ' ')}
+                          </span>
+                        )}
                       </div>
                     </div>
                     

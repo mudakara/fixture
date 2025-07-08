@@ -22,16 +22,43 @@ const canManageFixtures = (req: Request, res: Response, next: Function) => {
   }
 };
 
+// Helper function to shuffle array using Fisher-Yates algorithm
+const shuffleArray = <T>(array: T[]): T[] => {
+  const shuffled = [...array];
+  
+  // First shuffle
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  
+  // Double shuffle for better randomization
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  
+  return shuffled;
+};
+
 // Helper function to generate knockout bracket
-const generateKnockoutBracket = async (fixtureId: string, participants: mongoose.Types.ObjectId[], avoidSameTeam: boolean = false) => {
+const generateKnockoutBracket = async (fixtureId: string, participants: mongoose.Types.ObjectId[], randomizeSeeds: boolean = true) => {
   const totalParticipants = participants.length;
   const totalRounds = Math.ceil(Math.log2(totalParticipants));
   
-  // Shuffle participants if needed
+  logger.info(`generateKnockoutBracket called with randomizeSeeds: ${randomizeSeeds}`);
+  
+  // Shuffle participants if randomizeSeeds is true
   let orderedParticipants = [...participants];
-  if (avoidSameTeam) {
-    // Group players by team and try to avoid same team matchups in first round
-    // This logic would need team membership data
+  
+  // Log original order
+  logger.info(`Original participant order: ${participants.map(p => p.toString()).join(', ')}`);
+  
+  if (randomizeSeeds) {
+    orderedParticipants = shuffleArray(orderedParticipants);
+    logger.info(`Randomized participant order: ${orderedParticipants.map(p => p.toString()).join(', ')}`);
+  } else {
+    logger.info(`Randomization disabled, keeping original order`);
   }
   
   // Create a tree structure to properly generate matches
@@ -61,6 +88,9 @@ const generateKnockoutBracket = async (fixtureId: string, participants: mongoose
         if (awayIndex < orderedParticipants.length) {
           match.awayParticipant = orderedParticipants[awayIndex];
         }
+        
+        // Log first round matchups
+        logger.info(`Round 1, Match ${i + 1}: ${match.homeParticipant?.toString() || 'BYE'} vs ${match.awayParticipant?.toString() || 'BYE'}`);
         
         // Handle bye (when one participant is missing)
         if (homeIndex < orderedParticipants.length && awayIndex >= orderedParticipants.length) {
@@ -200,6 +230,11 @@ router.post('/', authenticate, canManageFixtures, async (req: Request, res: Resp
       }
     }
 
+    // Convert participants to ObjectIds if they're strings
+    const participantObjectIds = participants.map((p: string | mongoose.Types.ObjectId) => 
+      typeof p === 'string' ? new mongoose.Types.ObjectId(p) : p
+    );
+
     // Create fixture
     const fixture = new Fixture({
       name,
@@ -208,7 +243,7 @@ router.post('/', authenticate, canManageFixtures, async (req: Request, res: Resp
       sportGameId,
       format,
       participantType,
-      participants,
+      participants: participantObjectIds,
       startDate,
       endDate,
       settings: settings || {},
@@ -219,15 +254,20 @@ router.post('/', authenticate, canManageFixtures, async (req: Request, res: Resp
 
     // Generate matches based on format
     if (format === 'knockout') {
+      logger.info(`Creating knockout bracket with settings:`, { 
+        randomizeSeeds: settings?.randomizeSeeds,
+        settingsObject: settings 
+      });
+      
       await generateKnockoutBracket(
         (fixture._id as mongoose.Types.ObjectId).toString(), 
-        participants, 
-        settings?.avoidSameTeamFirstRound && participantType === 'player'
+        participantObjectIds, 
+        settings?.randomizeSeeds !== false // Default to true if not specified
       );
     } else if (format === 'roundrobin') {
       await generateRoundRobinSchedule(
         (fixture._id as mongoose.Types.ObjectId).toString(),
-        participants,
+        participantObjectIds,
         settings?.rounds || 1
       );
     }
@@ -262,7 +302,10 @@ router.post('/', authenticate, canManageFixtures, async (req: Request, res: Resp
 
     res.status(201).json({
       success: true,
-      fixture: populatedFixture
+      fixture: populatedFixture,
+      message: format === 'knockout' && settings?.randomizeSeeds !== false 
+        ? 'Fixture created with randomized bracket' 
+        : 'Fixture created'
     });
   } catch (error: any) {
     logger.error('Error creating fixture:', error);
@@ -333,12 +376,67 @@ router.get('/:id', authenticate, async (req: Request, res: Response): Promise<vo
     }
 
     // Get all matches for this fixture
-    const matches = await Match.find({ fixtureId: id })
-      .populate('homeParticipant')
-      .populate('awayParticipant')
-      .populate('winner')
-      .populate('nextMatchId')
-      .sort({ round: 1, matchNumber: 1 });
+    let matches;
+    
+    try {
+      if (fixture.participantType === 'team') {
+        matches = await Match.find({ fixtureId: id })
+          .populate({
+            path: 'homeParticipant',
+            model: Team,
+            select: 'name teamLogo'
+          })
+          .populate({
+            path: 'awayParticipant',
+            model: Team,
+            select: 'name teamLogo'
+          })
+          .populate({
+            path: 'winner',
+            model: Team,
+            select: 'name teamLogo'
+          })
+          .populate('nextMatchId')
+          .sort({ round: 1, matchNumber: 1 });
+      } else {
+        matches = await Match.find({ fixtureId: id })
+          .populate({
+            path: 'homeParticipant',
+            model: User,
+            select: 'name email displayName teamMemberships',
+            populate: {
+              path: 'teamMemberships.teamId',
+              select: 'name eventId',
+              match: { eventId: fixture.eventId }
+            }
+          })
+          .populate({
+            path: 'awayParticipant',
+            model: User,
+            select: 'name email displayName teamMemberships',
+            populate: {
+              path: 'teamMemberships.teamId',
+              select: 'name eventId',
+              match: { eventId: fixture.eventId }
+            }
+          })
+          .populate({
+            path: 'winner',
+            model: User,
+            select: 'name email displayName teamMemberships',
+            populate: {
+              path: 'teamMemberships.teamId',
+              select: 'name eventId',
+              match: { eventId: fixture.eventId }
+            }
+          })
+          .populate('nextMatchId')
+          .sort({ round: 1, matchNumber: 1 });
+      }
+    } catch (popError: any) {
+      logger.error('Error populating matches:', popError);
+      matches = await Match.find({ fixtureId: id }).sort({ round: 1, matchNumber: 1 });
+    }
 
     // Get participant details based on type
     let participantDetails = [];
@@ -348,7 +446,12 @@ router.get('/:id', authenticate, async (req: Request, res: Response): Promise<vo
         .populate('viceCaptainId', 'name email');
     } else {
       participantDetails = await User.find({ _id: { $in: fixture.participants } })
-        .select('name email displayName');
+        .select('name email displayName teamMemberships')
+        .populate({
+          path: 'teamMemberships.teamId',
+          select: 'name eventId',
+          match: { eventId: fixture.eventId }
+        });
     }
 
     res.json({
@@ -358,8 +461,15 @@ router.get('/:id', authenticate, async (req: Request, res: Response): Promise<vo
       participants: participantDetails
     });
   } catch (error: any) {
-    logger.error('Error fetching fixture:', error);
-    res.status(500).json({ error: 'Failed to fetch fixture' });
+    logger.error('Error fetching fixture details:', {
+      error: error.message,
+      stack: error.stack,
+      fixtureId: req.params.id
+    });
+    res.status(500).json({ 
+      error: 'Failed to fetch fixture details',
+      message: error.message 
+    });
   }
 });
 
@@ -544,6 +654,84 @@ router.get('/:id/standings', authenticate, async (req: Request, res: Response): 
   } catch (error: any) {
     logger.error('Error fetching standings:', error);
     res.status(500).json({ error: 'Failed to fetch standings' });
+  }
+});
+
+// Randomize knockout fixture
+router.post('/:id/randomize', authenticate, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const user = (req as any).user;
+
+    // Only super admin can randomize
+    if (user.role !== 'super_admin') {
+      res.status(403).json({ error: 'Only super admins can randomize fixtures' });
+      return;
+    }
+
+    const fixture = await Fixture.findById(id);
+    if (!fixture || !fixture.isActive) {
+      res.status(404).json({ error: 'Fixture not found' });
+      return;
+    }
+
+    // Only allow randomization for knockout fixtures
+    if (fixture.format !== 'knockout') {
+      res.status(400).json({ error: 'Can only randomize knockout fixtures' });
+      return;
+    }
+
+    // Check if any matches have been played
+    const playedMatches = await Match.find({ 
+      fixtureId: id, 
+      status: { $in: ['completed', 'in_progress'] }
+    });
+
+    if (playedMatches.length > 0) {
+      res.status(400).json({ error: 'Cannot randomize fixture with matches already played' });
+      return;
+    }
+
+    // Delete existing matches
+    await Match.deleteMany({ fixtureId: id });
+
+    // Convert participants to ObjectIds if needed
+    const participantObjectIds = fixture.participants.map((p: any) => 
+      typeof p === 'string' ? new mongoose.Types.ObjectId(p) : p
+    );
+
+    // Regenerate bracket with new randomization
+    await generateKnockoutBracket(
+      id,
+      participantObjectIds,
+      true // Force randomization
+    );
+
+    // Create audit log
+    await AuditLog.create({
+      userId: user._id,
+      action: 'update',
+      entity: 'fixture',
+      entityId: id,
+      details: {
+        action: 'randomized',
+        fixtureName: fixture.name
+      }
+    });
+
+    logger.info('Fixture randomized', {
+      userId: user._id,
+      fixtureId: id,
+      fixtureName: fixture.name
+    });
+
+    res.json({
+      success: true,
+      message: 'Fixture randomized successfully'
+    });
+  } catch (error: any) {
+    logger.error('Error randomizing fixture:', error);
+    res.status(500).json({ error: 'Failed to randomize fixture' });
   }
 });
 
