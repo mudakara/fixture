@@ -76,7 +76,7 @@ const FixtureSchema = new Schema<IFixture>(
     },
     startDate: {
       type: Date,
-      required: true
+      required: false
     },
     endDate: {
       type: Date

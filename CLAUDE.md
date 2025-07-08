@@ -158,7 +158,7 @@ npm run dev         # Start both frontend (port 3500) and backend (port 3501)
   participantType: 'player' | 'team'
   participants: [ObjectId] // Array of player IDs or team IDs
   status: 'draft' | 'scheduled' | 'in_progress' | 'completed' | 'cancelled'
-  startDate: Date
+  startDate?: Date  // Now optional
   endDate?: Date
   settings: {
     // Knockout specific
@@ -210,6 +210,35 @@ npm run dev         # Start both frontend (port 3500) and backend (port 3501)
   }
 }
 ```
+
+### Technical Implementation Details
+
+#### Fixture System Architecture
+
+1. **Same-Team Match Avoidance Algorithm**:
+   - `arrangeParticipantsAvoidSameTeam()` function in `fixtures.ts`
+   - Groups players by team and creates optimal pairings
+   - Validates if perfect avoidance is mathematically possible
+   - Falls back to best-effort arrangement when perfect avoidance impossible
+   - Post-creation validation ensures no same-team matches in round 1
+
+2. **Knockout Bracket Generation**:
+   - Calculates `firstRoundMatches = Math.ceil(participants / 2)`
+   - Creates only necessary matches, not full bracket size
+   - Automatically handles walkovers for bye rounds
+   - Match linking properly handles variable first round sizes
+
+3. **Team Name Display in Brackets**:
+   - Frontend fetches teams via `/api/teams?eventId={id}`
+   - Creates `teamMap: Map<teamId, teamName>` for efficient lookups
+   - `getPlayerTeamName()` helper function resolves team names
+   - Team names displayed in italic gray text below player names
+
+4. **Fixture Settings**:
+   - `randomizeSeeds`: Shuffles participant order (default: true)
+   - `avoidSameTeamFirstRound`: Prevents same-team matches (default: true)
+   - `thirdPlaceMatch`: Adds 3rd place match for knockouts
+   - Settings passed in fixture creation request body
 
 ### Key Features
 
@@ -385,6 +414,9 @@ npm run dev         # Start both frontend (port 3500) and backend (port 3501)
 16. **Date Validation** - Event end date must be after or equal to start date
 17. **Bulk Operations** - Support comma-separated values for bulk player creation
 18. **Dynamic Routes** - Use consistent naming ([id] or [eventId]) to avoid conflicts
+19. **Fixture Creation** - Supports `avoidSameTeamFirstRound` setting to prevent same-team matches
+20. **Team Population** - Frontend fetches teams separately when teamId is not populated in responses
+21. **Match Generation** - Knockout brackets create only necessary matches, not full power of 2
 
 ## Azure AD Configuration
 
@@ -419,10 +451,51 @@ Required API Permissions:
 15. **Bulk Player Creation**: Parse "Name <email>" format correctly
 16. **Fixture Routes 404**: Ensure routes are mounted correctly (e.g., `/api/fixtures` not `/api` + `/fixtures`)
 17. **Tournament Bracket Logic**: Round 1 should have the most matches, decreasing towards the final
+18. **Team Names Not Showing in Brackets**: Frontend creates a teamMap by fetching teams separately
+19. **Same-Team Match Prevention**: Use `avoidSameTeamFirstRound` setting in fixture creation
+20. **Empty Matches in Knockout**: First round only creates necessary matches (ceil(participants/2))
 
 ## Recent Updates
 
-### v0.2 Updates (Latest)
+### v0.4 Updates (Latest)
+- **Advanced Same-Team Match Avoidance for Player Fixtures**:
+  - Implemented intelligent algorithm to prevent players from same team facing each other in round 1
+  - Pre-creation validation checks if same-team avoidance is mathematically possible
+  - Arranges participants optimally to minimize same-team matchups
+  - Supports randomization while maintaining team separation
+  - Provides warnings when perfect avoidance is impossible (e.g., team has >50% of players)
+  - Validates all matches after creation to ensure no same-team pairings
+  - Works for both knockout and round-robin formats
+
+- **Team Name Display in Player Brackets**:
+  - Fixed team names not showing under player names in tournament brackets
+  - Frontend now fetches team data separately and creates a teamMap for lookups
+  - Team names appear in italic gray text below player names
+  - Backend properly attaches team information during match population
+  - Only shows teams from the current event
+
+- **Fixture Details Error Fix**:
+  - Resolved "Failed to fetch fixture details" error
+  - Simplified complex nested population queries that were causing issues
+  - Improved error handling with detailed error messages
+  - Fixed TypeScript compilation errors
+
+### v0.3 Updates
+- **Fixture Date Fields Made Optional**:
+  - Both `startDate` and `endDate` are now optional for fixtures
+  - Removed required validation from fixture creation API
+  - Updated fixture creation form to remove required asterisk
+  - Allows more flexibility in tournament planning
+
+- **Improved Knockout Bracket Generation**:
+  - Fixed issue where empty matches (TBD vs bye) were created in round 1
+  - Bracket now only creates necessary matches based on participant count
+  - First round matches = ceil(participants / 2) instead of full power of 2
+  - Properly handles bye rounds with walkover advancement
+  - Match linking algorithm updated to handle variable first round sizes
+  - No more empty match cards in the tournament bracket view
+
+### v0.2 Updates
 - **Randomize Bracket Feature**:
   - Added "Randomize Bracket" button for super admins on knockout fixtures
   - Only available for team-based knockout tournaments before any matches are played

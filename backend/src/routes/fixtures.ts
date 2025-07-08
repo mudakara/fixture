@@ -41,20 +41,215 @@ const shuffleArray = <T>(array: T[]): T[] => {
   return shuffled;
 };
 
+// Helper function to arrange participants to avoid same team in first round
+const arrangeParticipantsAvoidSameTeam = (
+  participants: mongoose.Types.ObjectId[],
+  playerToTeamMap: Map<string, string>,
+  randomizeSeeds: boolean = true
+): { arrangedParticipants: mongoose.Types.ObjectId[], hasImpossibleMatches: boolean } => {
+  // Group players by team
+  const teamGroups = new Map<string, mongoose.Types.ObjectId[]>();
+  const playersWithoutTeam: mongoose.Types.ObjectId[] = [];
+  
+  for (const participant of participants) {
+    const participantId = participant.toString();
+    const teamId = playerToTeamMap.get(participantId);
+    
+    if (teamId) {
+      if (!teamGroups.has(teamId)) {
+        teamGroups.set(teamId, []);
+      }
+      teamGroups.get(teamId)!.push(participant);
+    } else {
+      playersWithoutTeam.push(participant);
+    }
+  }
+  
+  const arrangedParticipants: mongoose.Types.ObjectId[] = [];
+  const teamArray = Array.from(teamGroups.entries());
+  
+  // Check if same-team avoidance is mathematically possible
+  const totalPairs = Math.ceil(participants.length / 2);
+  const teamsWithMultiplePlayers = teamArray.filter(([, players]) => players.length > 1);
+  let hasImpossibleMatches = false;
+  
+  // If any team has more than totalPairs/2 players, perfect avoidance is impossible
+  for (const [teamId, players] of teamsWithMultiplePlayers) {
+    if (players.length > Math.ceil(totalPairs / 2)) {
+      hasImpossibleMatches = true;
+      logger.warn(`Team ${teamId} has ${players.length} players, which may result in same-team matches`);
+    }
+  }
+  
+  // Strategy: Create pairs ensuring different teams
+  const usedPlayers = new Set<string>();
+  const pairs: mongoose.Types.ObjectId[][] = [];
+  
+  // First, try to create pairs from different teams
+  for (const [teamId, players] of teamArray) {
+    for (const player of players) {
+      if (usedPlayers.has(player.toString())) continue;
+      
+      // Find a player from a different team to pair with
+      let paired = false;
+      for (const [otherTeamId, otherPlayers] of teamArray) {
+        if (otherTeamId === teamId) continue;
+        
+        for (const otherPlayer of otherPlayers) {
+          if (usedPlayers.has(otherPlayer.toString())) continue;
+          
+          // Create a pair
+          pairs.push([player, otherPlayer]);
+          usedPlayers.add(player.toString());
+          usedPlayers.add(otherPlayer.toString());
+          paired = true;
+          break;
+        }
+        if (paired) break;
+      }
+      
+      // If couldn't pair with different team, try with players without team
+      if (!paired && playersWithoutTeam.length > 0) {
+        for (const noTeamPlayer of playersWithoutTeam) {
+          if (usedPlayers.has(noTeamPlayer.toString())) continue;
+          
+          pairs.push([player, noTeamPlayer]);
+          usedPlayers.add(player.toString());
+          usedPlayers.add(noTeamPlayer.toString());
+          paired = true;
+          break;
+        }
+      }
+    }
+  }
+  
+  // Handle remaining players without teams
+  const remainingNoTeamPlayers = playersWithoutTeam.filter(p => !usedPlayers.has(p.toString()));
+  for (let i = 0; i < remainingNoTeamPlayers.length; i += 2) {
+    if (i + 1 < remainingNoTeamPlayers.length) {
+      pairs.push([remainingNoTeamPlayers[i], remainingNoTeamPlayers[i + 1]]);
+      usedPlayers.add(remainingNoTeamPlayers[i].toString());
+      usedPlayers.add(remainingNoTeamPlayers[i + 1].toString());
+    }
+  }
+  
+  // Handle remaining unpaired players (this will result in same-team matches)
+  const remainingPlayers = participants.filter(p => !usedPlayers.has(p.toString()));
+  for (let i = 0; i < remainingPlayers.length; i += 2) {
+    if (i + 1 < remainingPlayers.length) {
+      pairs.push([remainingPlayers[i], remainingPlayers[i + 1]]);
+      hasImpossibleMatches = true;
+      logger.warn(`Forced same-team pairing: ${remainingPlayers[i]} vs ${remainingPlayers[i + 1]}`);
+    }
+  }
+  
+  // Flatten pairs to create arranged participants list
+  for (const pair of pairs) {
+    arrangedParticipants.push(...pair);
+  }
+  
+  // Add any remaining single player (will get a bye)
+  const finalRemaining = participants.filter(p => !usedPlayers.has(p.toString()));
+  arrangedParticipants.push(...finalRemaining);
+  
+  // Shuffle pairs if randomization is enabled
+  if (randomizeSeeds && pairs.length > 0) {
+    const shuffledPairs = shuffleArray(pairs);
+    arrangedParticipants.length = 0; // Clear array
+    for (const pair of shuffledPairs) {
+      arrangedParticipants.push(...pair);
+    }
+    arrangedParticipants.push(...finalRemaining);
+  }
+  
+  logger.info(`Arranged ${pairs.length} pairs, ${hasImpossibleMatches ? 'some' : 'no'} same-team matches`);
+  
+  return { arrangedParticipants, hasImpossibleMatches };
+};
+
+// Helper function to validate no same-team matches in round 1
+const validateNoSameTeamMatches = (
+  matches: any[],
+  playerToTeamMap: Map<string, string>,
+  participantType: 'player' | 'team'
+): { isValid: boolean, violations: string[] } => {
+  const violations: string[] = [];
+  
+  if (participantType !== 'player') {
+    return { isValid: true, violations: [] };
+  }
+  
+  const round1Matches = matches.filter(m => m.round === 1);
+  
+  for (const match of round1Matches) {
+    if (match.homeParticipant && match.awayParticipant) {
+      const homeTeam = playerToTeamMap.get(match.homeParticipant.toString());
+      const awayTeam = playerToTeamMap.get(match.awayParticipant.toString());
+      
+      if (homeTeam && awayTeam && homeTeam === awayTeam) {
+        violations.push(`Match ${match.matchNumber}: Players from same team (${homeTeam})`);
+      }
+    }
+  }
+  
+  return { isValid: violations.length === 0, violations };
+};
+
 // Helper function to generate knockout bracket
-const generateKnockoutBracket = async (fixtureId: string, participants: mongoose.Types.ObjectId[], randomizeSeeds: boolean = true) => {
+const generateKnockoutBracket = async (
+  fixtureId: string, 
+  participants: mongoose.Types.ObjectId[], 
+  eventId: mongoose.Types.ObjectId,
+  participantType: 'player' | 'team',
+  settings: any = {}
+) => {
   const totalParticipants = participants.length;
   const totalRounds = Math.ceil(Math.log2(totalParticipants));
+  // const bracketSize = Math.pow(2, totalRounds); // Currently unused
+  const { randomizeSeeds = true, avoidSameTeamFirstRound = true } = settings;
   
-  logger.info(`generateKnockoutBracket called with randomizeSeeds: ${randomizeSeeds}`);
+  logger.info(`generateKnockoutBracket called with settings:`, { 
+    randomizeSeeds, 
+    avoidSameTeamFirstRound,
+    participantType 
+  });
   
-  // Shuffle participants if randomizeSeeds is true
   let orderedParticipants = [...participants];
   
   // Log original order
   logger.info(`Original participant order: ${participants.map(p => p.toString()).join(', ')}`);
   
-  if (randomizeSeeds) {
+  // Declare playerToTeamMap at the top level for validation later
+  let playerToTeamMap = new Map<string, string>();
+  
+  // If we need to avoid same team matchups for player fixtures
+  if (participantType === 'player' && avoidSameTeamFirstRound) {
+    // Get team memberships for all players
+    const playersWithTeams = await User.find({
+      _id: { $in: participants }
+    }).select('_id teamMemberships').lean();
+    
+    // Create a map of player to team for this event
+    playersWithTeams.forEach(player => {
+      const membership = player.teamMemberships.find(tm => tm.eventId.toString() === eventId.toString());
+      if (membership) {
+        playerToTeamMap.set(player._id.toString(), membership.teamId.toString());
+      }
+    });
+    
+    logger.info(`Player to team mapping:`, Object.fromEntries(playerToTeamMap));
+    
+    // Try to arrange participants to avoid same team in first round
+    const { arrangedParticipants, hasImpossibleMatches } = arrangeParticipantsAvoidSameTeam(participants, playerToTeamMap, randomizeSeeds);
+    
+    if (hasImpossibleMatches) {
+      logger.warn(`Could not perfectly avoid same-team matches for player fixtures. Some matches might be forced.`);
+      orderedParticipants = arrangedParticipants; // Use arranged participants even if forced
+    } else {
+      orderedParticipants = arrangedParticipants;
+    }
+  } else if (randomizeSeeds) {
+    // Regular randomization for team fixtures or when avoidSameTeamFirstRound is false
     orderedParticipants = shuffleArray(orderedParticipants);
     logger.info(`Randomized participant order: ${orderedParticipants.map(p => p.toString()).join(', ')}`);
   } else {
@@ -65,9 +260,13 @@ const generateKnockoutBracket = async (fixtureId: string, participants: mongoose
   const matches: any[] = [];
   let matchNumber = 1;
   
+  // Calculate how many matches are needed in the first round
+  const firstRoundMatches = Math.ceil(totalParticipants / 2);
+  // const byeCount = bracketSize - totalParticipants; // Currently unused but kept for reference
+  
   // Generate matches from first round to final
   for (let round = 1; round <= totalRounds; round++) {
-    const matchesInRound = Math.pow(2, totalRounds - round);
+    const matchesInRound = round === 1 ? firstRoundMatches : Math.pow(2, totalRounds - round);
     
     for (let i = 0; i < matchesInRound; i++) {
       const match = new Match({
@@ -96,6 +295,7 @@ const generateKnockoutBracket = async (fixtureId: string, participants: mongoose
         if (homeIndex < orderedParticipants.length && awayIndex >= orderedParticipants.length) {
           match.winner = orderedParticipants[homeIndex];
           match.status = 'walkover';
+          logger.info(`Match ${match.matchNumber} is a walkover, winner: ${match.winner}`);
         }
       }
       
@@ -106,11 +306,12 @@ const generateKnockoutBracket = async (fixtureId: string, participants: mongoose
   // Link matches properly - winners advance to next round
   let matchIndex = 0;
   for (let round = 1; round < totalRounds; round++) {
-    const matchesInRound = Math.pow(2, totalRounds - round);
+    const matchesInThisRound = round === 1 ? firstRoundMatches : Math.pow(2, totalRounds - round);
+    // const matchesInNextRound = Math.pow(2, totalRounds - (round + 1)); // Currently unused
     
-    for (let i = 0; i < matchesInRound; i++) {
+    for (let i = 0; i < matchesInThisRound; i++) {
       const currentMatch = matches[matchIndex + i];
-      const nextMatchIndex = matchIndex + matchesInRound + Math.floor(i / 2);
+      const nextMatchIndex = matchIndex + matchesInThisRound + Math.floor(i / 2);
       const nextMatch = matches[nextMatchIndex];
       
       if (currentMatch && nextMatch) {
@@ -123,7 +324,19 @@ const generateKnockoutBracket = async (fixtureId: string, participants: mongoose
       }
     }
     
-    matchIndex += matchesInRound;
+    matchIndex += matchesInThisRound;
+  }
+  
+  // MANDATORY VALIDATION: Check for same-team matches in round 1
+  if (participantType === 'player' && avoidSameTeamFirstRound) {
+    const { isValid, violations } = validateNoSameTeamMatches(matches, playerToTeamMap, participantType);
+    
+    if (!isValid) {
+      logger.error(`VALIDATION FAILED: Same-team matches detected in Round 1:`, violations);
+      throw new Error(`Cannot create fixture: Same-team matches detected in Round 1. ${violations.join(', ')}`);
+    } else {
+      logger.info('✅ VALIDATION PASSED: No same-team matches in Round 1');
+    }
   }
   
   // Save all matches
@@ -150,25 +363,89 @@ const generateKnockoutBracket = async (fixtureId: string, participants: mongoose
 };
 
 // Helper function to generate round-robin schedule
-const generateRoundRobinSchedule = async (fixtureId: string, participants: mongoose.Types.ObjectId[], rounds: number = 1) => {
+const generateRoundRobinSchedule = async (
+  fixtureId: string, 
+  participants: mongoose.Types.ObjectId[], 
+  eventId: mongoose.Types.ObjectId,
+  participantType: 'player' | 'team',
+  settings: any = {}
+) => {
+  const { rounds = 1, avoidSameTeamFirstRound = true } = settings;
   const matches: any[] = [];
   let matchNumber = 1;
+  
+  // For round-robin, we need to check same team for ALL rounds, not just first
+  let playerToTeamMap = new Map<string, string>();
+  
+  if (participantType === 'player' && avoidSameTeamFirstRound) {
+    // Get team memberships for all players
+    const playersWithTeams = await User.find({
+      _id: { $in: participants }
+    }).select('_id teamMemberships').lean();
+    
+    // Create a map of player to team for this event
+    playersWithTeams.forEach(player => {
+      const membership = player.teamMemberships.find(tm => tm.eventId.toString() === eventId.toString());
+      if (membership) {
+        playerToTeamMap.set(player._id.toString(), membership.teamId.toString());
+      }
+    });
+    
+    logger.info(`Round-robin player to team mapping:`, Object.fromEntries(playerToTeamMap));
+  }
   
   for (let round = 1; round <= rounds; round++) {
     // Generate all combinations
     for (let i = 0; i < participants.length; i++) {
       for (let j = i + 1; j < participants.length; j++) {
+        const homeParticipant = participants[i];
+        const awayParticipant = participants[j];
+        
+        // Check if both players are from the same team (skip if avoidSameTeamFirstRound is true)
+        if (participantType === 'player' && avoidSameTeamFirstRound) {
+          const homeTeam = playerToTeamMap.get(homeParticipant.toString());
+          const awayTeam = playerToTeamMap.get(awayParticipant.toString());
+          
+          if (homeTeam && awayTeam && homeTeam === awayTeam) {
+            logger.warn(`Skipping same team match in round-robin: ${homeParticipant.toString()} vs ${awayParticipant.toString()} (both from team ${homeTeam})`);
+            continue; // Skip this match
+          }
+        }
+        
         const match = new Match({
           fixtureId,
           round,
           matchNumber: matchNumber++,
-          homeParticipant: participants[i],
-          awayParticipant: participants[j],
+          homeParticipant,
+          awayParticipant,
           status: 'scheduled'
         });
         
         matches.push(match);
       }
+    }
+  }
+  
+  // MANDATORY VALIDATION: Check for same-team matches (all rounds for round-robin)
+  if (participantType === 'player' && avoidSameTeamFirstRound) {
+    const violations: string[] = [];
+    
+    for (const match of matches) {
+      if (match.homeParticipant && match.awayParticipant) {
+        const homeTeam = playerToTeamMap.get(match.homeParticipant.toString());
+        const awayTeam = playerToTeamMap.get(match.awayParticipant.toString());
+        
+        if (homeTeam && awayTeam && homeTeam === awayTeam) {
+          violations.push(`Round ${match.round}, Match ${match.matchNumber}: Players from same team (${homeTeam})`);
+        }
+      }
+    }
+    
+    if (violations.length > 0) {
+      logger.error(`VALIDATION FAILED: Same-team matches detected in round-robin:`, violations);
+      throw new Error(`Cannot create fixture: Same-team matches detected. ${violations.join(', ')}`);
+    } else {
+      logger.info('✅ VALIDATION PASSED: No same-team matches in round-robin');
     }
   }
   
@@ -196,7 +473,7 @@ router.post('/', authenticate, canManageFixtures, async (req: Request, res: Resp
     const user = (req as any).user;
 
     // Validate required fields
-    if (!name || !eventId || !sportGameId || !format || !participantType || !participants || !startDate) {
+    if (!name || !eventId || !sportGameId || !format || !participantType || !participants) {
       res.status(400).json({ error: 'Missing required fields' });
       return;
     }
@@ -235,6 +512,36 @@ router.post('/', authenticate, canManageFixtures, async (req: Request, res: Resp
       typeof p === 'string' ? new mongoose.Types.ObjectId(p) : p
     );
 
+    // PRE-CREATION VALIDATION: Check if same-team avoidance is possible
+    if (participantType === 'player' && settings?.avoidSameTeamFirstRound !== false) {
+      const playersWithTeams = await User.find({
+        _id: { $in: participantObjectIds }
+      }).select('_id teamMemberships').lean();
+      
+      const teamCounts = new Map<string, number>();
+      let playersWithoutTeam = 0;
+      
+      playersWithTeams.forEach(player => {
+        const membership = player.teamMemberships.find(tm => tm.eventId.toString() === eventId);
+        if (membership) {
+          const teamId = membership.teamId.toString();
+          teamCounts.set(teamId, (teamCounts.get(teamId) || 0) + 1);
+        } else {
+          playersWithoutTeam++;
+        }
+      });
+      
+      const totalPairs = Math.ceil(participantObjectIds.length / 2);
+      const largestTeamSize = Math.max(...Array.from(teamCounts.values()), 0);
+      
+      if (largestTeamSize > Math.ceil(totalPairs / 2)) {
+        logger.warn(`Pre-creation warning: Team with ${largestTeamSize} players may force same-team matches`);
+        // Don't throw error, just warn - the algorithm will handle it
+      }
+      
+      logger.info(`Pre-creation check: ${teamCounts.size} teams, largest team: ${largestTeamSize} players, ${playersWithoutTeam} without team`);
+    }
+
     // Create fixture
     const fixture = new Fixture({
       name,
@@ -256,19 +563,24 @@ router.post('/', authenticate, canManageFixtures, async (req: Request, res: Resp
     if (format === 'knockout') {
       logger.info(`Creating knockout bracket with settings:`, { 
         randomizeSeeds: settings?.randomizeSeeds,
+        avoidSameTeamFirstRound: settings?.avoidSameTeamFirstRound,
         settingsObject: settings 
       });
       
       await generateKnockoutBracket(
         (fixture._id as mongoose.Types.ObjectId).toString(), 
         participantObjectIds, 
-        settings?.randomizeSeeds !== false // Default to true if not specified
+        event._id as mongoose.Types.ObjectId,
+        participantType,
+        settings
       );
     } else if (format === 'roundrobin') {
       await generateRoundRobinSchedule(
         (fixture._id as mongoose.Types.ObjectId).toString(),
         participantObjectIds,
-        settings?.rounds || 1
+        event._id as mongoose.Types.ObjectId,
+        participantType,
+        settings
       );
     }
 
@@ -403,35 +715,99 @@ router.get('/:id', authenticate, async (req: Request, res: Response): Promise<vo
           .populate({
             path: 'homeParticipant',
             model: User,
-            select: 'name email displayName teamMemberships',
-            populate: {
-              path: 'teamMemberships.teamId',
-              select: 'name eventId',
-              match: { eventId: fixture.eventId }
-            }
+            select: 'name email displayName teamMemberships'
           })
           .populate({
             path: 'awayParticipant',
             model: User,
-            select: 'name email displayName teamMemberships',
-            populate: {
-              path: 'teamMemberships.teamId',
-              select: 'name eventId',
-              match: { eventId: fixture.eventId }
-            }
+            select: 'name email displayName teamMemberships'
           })
           .populate({
             path: 'winner',
             model: User,
-            select: 'name email displayName teamMemberships',
-            populate: {
-              path: 'teamMemberships.teamId',
-              select: 'name eventId',
-              match: { eventId: fixture.eventId }
-            }
+            select: 'name email displayName teamMemberships'
           })
           .populate('nextMatchId')
           .sort({ round: 1, matchNumber: 1 });
+          
+        // Manually populate team information for the specific event
+        const teamIds = new Set<string>();
+        const playerIds: string[] = [];
+        
+        // Collect all player IDs and their team IDs
+        matches.forEach(match => {
+          ['homeParticipant', 'awayParticipant', 'winner'].forEach(field => {
+            const participant = (match as any)[field];
+            if (participant && participant._id) {
+              playerIds.push(participant._id.toString());
+              if (participant.teamMemberships && Array.isArray(participant.teamMemberships)) {
+                participant.teamMemberships.forEach((tm: any) => {
+                  // Log for debugging
+                  logger.info(`Team membership for ${participant.name}:`, {
+                    tmEventId: tm.eventId?.toString(),
+                    fixtureEventId: fixture.eventId.toString(),
+                    teamId: tm.teamId?.toString()
+                  });
+                  
+                  if (tm.eventId && tm.eventId.toString() === fixture.eventId.toString()) {
+                    teamIds.add(tm.teamId.toString());
+                  }
+                });
+              }
+            }
+          });
+        });
+        
+        // Fetch all relevant teams for this event
+        const teams = await Team.find({ 
+          _id: { $in: Array.from(teamIds) }
+        }).select('_id name');
+        
+        logger.info(`Found ${teams.length} teams for event ${fixture.eventId}:`, teams.map(t => ({ id: t._id, name: t.name })));
+        
+        const teamMap = new Map<string, any>();
+        teams.forEach((team: any) => {
+          teamMap.set(team._id.toString(), {
+            _id: team._id,
+            name: team.name
+          });
+        });
+        
+        // Process each match to attach team information
+        matches = matches.map(match => {
+          const matchObj = match.toObject();
+          
+          ['homeParticipant', 'awayParticipant', 'winner'].forEach(field => {
+            const participant = (matchObj as any)[field];
+            if (participant && participant.teamMemberships && Array.isArray(participant.teamMemberships)) {
+              (matchObj as any)[field].teamMemberships = participant.teamMemberships.map((tm: any) => {
+                const tmObj = tm.toObject ? tm.toObject() : tm;
+                if (tmObj.eventId && tmObj.eventId.toString() === fixture.eventId.toString() && 
+                    tmObj.teamId && teamMap.has(tmObj.teamId.toString())) {
+                  return {
+                    _id: tmObj._id,
+                    eventId: tmObj.eventId,
+                    role: tmObj.role,
+                    joinedAt: tmObj.joinedAt,
+                    teamId: teamMap.get(tmObj.teamId.toString())
+                  };
+                }
+                return tmObj;
+              });
+            }
+          });
+          
+          return matchObj;
+        });
+        
+        // Debug: Log first match to see if team data is attached
+        if (matches.length > 0 && matches[0].homeParticipant) {
+          const participant = matches[0].homeParticipant as any;
+          logger.info('First match home participant after team attachment:', {
+            name: participant.name,
+            teamMemberships: participant.teamMemberships
+          });
+        }
       }
     } catch (popError: any) {
       logger.error('Error populating matches:', popError);
@@ -704,7 +1080,9 @@ router.post('/:id/randomize', authenticate, async (req: Request, res: Response):
     await generateKnockoutBracket(
       id,
       participantObjectIds,
-      true // Force randomization
+      fixture.eventId,
+      fixture.participantType,
+      fixture.settings
     );
 
     // Create audit log

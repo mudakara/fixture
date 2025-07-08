@@ -78,6 +78,7 @@ function FixtureDetailContent({ params }: { params: Promise<Params> }) {
   const [error, setError] = useState<string | null>(null);
   const [selectedMatch, setSelectedMatch] = useState<Match | null>(null);
   const [showUpdateModal, setShowUpdateModal] = useState(false);
+  const [teamMap, setTeamMap] = useState<Map<string, string>>(new Map());
   const [updateForm, setUpdateForm] = useState({
     homeScore: 0,
     awayScore: 0,
@@ -95,6 +96,43 @@ function FixtureDetailContent({ params }: { params: Promise<Params> }) {
     fetchFixtureDetails();
   }, [resolvedParams.id]);
 
+  const fetchTeamData = async (eventId: string, matches: Match[]) => {
+    try {
+      // Get all unique team IDs from player team memberships
+      const teamIds = new Set<string>();
+      
+      matches.forEach(match => {
+        ['homeParticipant', 'awayParticipant', 'winner'].forEach(field => {
+          const participant = (match as any)[field];
+          if (participant && participant.teamMemberships) {
+            participant.teamMemberships.forEach((tm: any) => {
+              if (tm.eventId === eventId && tm.teamId) {
+                teamIds.add(tm.teamId);
+              }
+            });
+          }
+        });
+      });
+      
+      // Fetch teams for this event
+      const response = await axios.get(
+        `${process.env.NEXT_PUBLIC_API_URL}/teams?eventId=${eventId}`,
+        { withCredentials: true }
+      );
+      
+      // Create a map of teamId to team name
+      const newTeamMap = new Map<string, string>();
+      response.data.teams.forEach((team: any) => {
+        newTeamMap.set(team._id, team.name);
+      });
+      
+      setTeamMap(newTeamMap);
+      console.log('Team map created:', Object.fromEntries(newTeamMap));
+    } catch (err) {
+      console.error('Error fetching team data:', err);
+    }
+  };
+
   const fetchFixtureDetails = async () => {
     try {
       const response = await axios.get(
@@ -105,6 +143,21 @@ function FixtureDetailContent({ params }: { params: Promise<Params> }) {
       setFixture(response.data.fixture);
       setMatches(response.data.matches || []);
       setParticipants(response.data.participants || []);
+      
+      // If it's a player fixture, fetch team data
+      if (response.data.fixture.participantType === 'player' && response.data.fixture.eventId) {
+        await fetchTeamData(response.data.fixture.eventId._id, response.data.matches);
+      }
+      
+      // Debug: Log first match with player data
+      if (response.data.matches && response.data.matches.length > 0) {
+        const firstMatch = response.data.matches[0];
+        console.log('First match participant data:', {
+          homeParticipant: firstMatch.homeParticipant,
+          awayParticipant: firstMatch.awayParticipant
+        });
+      }
+      
       setLoading(false);
     } catch (err: any) {
       console.error('Error fetching fixture details:', err);
@@ -196,10 +249,15 @@ function FixtureDetailContent({ params }: { params: Promise<Params> }) {
     
     // Find the team membership for this event
     const membership = participant.teamMemberships.find((tm: any) => 
-      tm.teamId && tm.teamId.eventId === fixture.eventId._id
+      tm.eventId === fixture.eventId._id
     );
     
-    return membership?.teamId?.name || null;
+    if (membership && membership.teamId) {
+      // Look up team name from our teamMap
+      return teamMap.get(membership.teamId) || null;
+    }
+    
+    return null;
   };
 
   const renderKnockoutBracket = () => {
@@ -357,7 +415,7 @@ function FixtureDetailContent({ params }: { params: Promise<Params> }) {
                                 {match.homeParticipant?.name || match.homeParticipant?.displayName || 'TBD'}
                               </span>
                               {fixture.participantType === 'player' && getPlayerTeamName(match.homeParticipant) && (
-                                <span className="text-xs text-gray-600">({getPlayerTeamName(match.homeParticipant)})</span>
+                                <span className="text-xs text-gray-500 italic">{getPlayerTeamName(match.homeParticipant)}</span>
                               )}
                             </div>
                             {match.homeScore !== undefined && (
@@ -377,7 +435,7 @@ function FixtureDetailContent({ params }: { params: Promise<Params> }) {
                                 {match.awayParticipant?.name || match.awayParticipant?.displayName || 'TBD'}
                               </span>
                               {fixture.participantType === 'player' && getPlayerTeamName(match.awayParticipant) && (
-                                <span className="text-xs text-gray-600">({getPlayerTeamName(match.awayParticipant)})</span>
+                                <span className="text-xs text-gray-500 italic">{getPlayerTeamName(match.awayParticipant)}</span>
                               )}
                             </div>
                             {match.awayScore !== undefined && (
