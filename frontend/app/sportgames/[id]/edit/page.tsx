@@ -22,6 +22,7 @@ interface SportGame {
   venue?: string;
   equipment?: string[];
   image?: string;
+  isDoubles?: boolean;
 }
 
 function EditSportGameContent({ id }: { id: string }) {
@@ -43,6 +44,7 @@ function EditSportGameContent({ id }: { id: string }) {
     duration: '',
     venue: '',
     equipment: '',
+    isDoubles: false,
     image: null as File | null
   });
 
@@ -78,6 +80,7 @@ function EditSportGameContent({ id }: { id: string }) {
         duration: sportGame.duration?.toString() || '',
         venue: sportGame.venue || '',
         equipment: sportGame.equipment?.join(', ') || '',
+        isDoubles: sportGame.isDoubles || false,
         image: null
       });
 
@@ -95,11 +98,19 @@ function EditSportGameContent({ id }: { id: string }) {
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
+    const { name, value, type } = e.target;
+    if (type === 'checkbox') {
+      const checked = (e.target as HTMLInputElement).checked;
+      setFormData(prev => ({
+        ...prev,
+        [name]: checked
+      }));
+    } else {
+      setFormData(prev => ({
+        ...prev,
+        [name]: value
+      }));
+    }
   };
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -137,6 +148,7 @@ function EditSportGameContent({ id }: { id: string }) {
       if (formData.duration) formDataToSend.append('duration', formData.duration);
       if (formData.venue) formDataToSend.append('venue', formData.venue);
       if (formData.equipment) formDataToSend.append('equipment', formData.equipment);
+      formDataToSend.append('isDoubles', formData.isDoubles.toString());
       if (formData.image) formDataToSend.append('image', formData.image);
 
       const response = await axios.put(
@@ -318,6 +330,26 @@ function EditSportGameContent({ id }: { id: string }) {
                       className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-gray-900"
                     />
                   </div>
+                </div>
+
+                {/* Is Doubles */}
+                <div>
+                  <div className="flex items-center">
+                    <input
+                      type="checkbox"
+                      name="isDoubles"
+                      id="isDoubles"
+                      checked={formData.isDoubles}
+                      onChange={handleInputChange}
+                      className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+                    />
+                    <label htmlFor="isDoubles" className="ml-2 block text-sm text-gray-900">
+                      Is it Doubles?
+                    </label>
+                  </div>
+                  <p className="mt-1 text-sm text-gray-500">
+                    Check this if the activity is played in doubles format (e.g., badminton doubles, tennis doubles)
+                  </p>
                 </div>
 
                 {/* Duration */}

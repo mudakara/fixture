@@ -12,6 +12,7 @@ export interface ISportGame extends Document {
   venue?: string;
   equipment?: string[];
   image?: string;
+  isDoubles?: boolean;
   isActive: boolean;
   createdBy: mongoose.Types.ObjectId;
   createdAt: Date;
@@ -64,6 +65,10 @@ const SportGameSchema = new Schema<ISportGame>(
     }],
     image: {
       type: String
+    },
+    isDoubles: {
+      type: Boolean,
+      default: false
     },
     isActive: {
       type: Boolean,

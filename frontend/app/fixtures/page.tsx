@@ -306,7 +306,7 @@ function FixturesContent() {
                         >
                           View Details
                         </Link>
-                        {(user?.role === 'super_admin' || user?.role === 'admin' || fixture.createdBy._id === user?._id) && (
+                        {(user?.role === 'super_admin' || user?.role === 'admin' || fixture.createdBy._id === user?.id) && (
                           <button
                             onClick={() => handleDelete(fixture._id, fixture.name)}
                             className="text-red-600 hover:text-red-900 text-sm font-medium"

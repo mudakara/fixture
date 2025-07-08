@@ -8,6 +8,16 @@ interface User {
   displayName?: string;
   department?: string;
   jobTitle?: string;
+  authProvider?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  lastLogin?: string;
+  teams?: any[];
+  team?: any;
+  azureAdId?: string;
+  officeLocation?: string;
+  preferredLanguage?: string;
+  teamMemberships?: any[];
 }
 
 interface AuthState {

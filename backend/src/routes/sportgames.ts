@@ -57,7 +57,7 @@ const adminOnly = (req: Request, res: Response, next: Function) => {
 // Create a new sport/game
 router.post('/sportgames', authenticate, adminOnly, upload.single('image'), async (req: Request, res: Response): Promise<void> => {
   try {
-    const { title, description, type, category, rules, minPlayers, maxPlayers, duration, venue, equipment } = req.body;
+    const { title, description, type, category, rules, minPlayers, maxPlayers, duration, venue, equipment, isDoubles } = req.body;
     const user = (req as any).user;
 
     // Validate required fields
@@ -95,6 +95,7 @@ router.post('/sportgames', authenticate, adminOnly, upload.single('image'), asyn
       duration: duration ? parseInt(duration) : undefined,
       venue,
       equipment: equipmentArray,
+      isDoubles: isDoubles === 'true' || isDoubles === true,
       image: req.file ? `/uploads/sportgames/${req.file.filename}` : undefined,
       createdBy: user._id
     });
@@ -195,7 +196,7 @@ router.get('/sportgames/:id', authenticate, async (req: Request, res: Response):
 router.put('/sportgames/:id', authenticate, adminOnly, upload.single('image'), async (req: Request, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
-    const { title, description, type, category, rules, minPlayers, maxPlayers, duration, venue, equipment } = req.body;
+    const { title, description, type, category, rules, minPlayers, maxPlayers, duration, venue, equipment, isDoubles } = req.body;
     const user = (req as any).user;
 
     const sportGame = await SportGame.findById(id);
@@ -275,6 +276,13 @@ router.put('/sportgames/:id', authenticate, adminOnly, upload.single('image'), a
       }
       oldValues.equipment = sportGame.equipment;
       updateData.equipment = equipmentArray;
+    }
+    if (isDoubles !== undefined) {
+      const isDoublesBoolean = isDoubles === 'true' || isDoubles === true;
+      if (isDoublesBoolean !== sportGame.isDoubles) {
+        oldValues.isDoubles = sportGame.isDoubles;
+        updateData.isDoubles = isDoublesBoolean;
+      }
     }
 
     // Handle image update

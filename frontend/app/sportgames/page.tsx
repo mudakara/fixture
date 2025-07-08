@@ -23,6 +23,7 @@ interface SportGame {
   venue?: string;
   equipment?: string[];
   image?: string;
+  isDoubles?: boolean;
   createdBy: {
     _id: string;
     name: string;
@@ -233,7 +234,7 @@ function SportGamesContent() {
                         </svg>
                       </div>
                     )}
-                    <div className="absolute top-2 right-2">
+                    <div className="absolute top-2 right-2 flex items-center space-x-2">
                       <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
                         sportGame.type === 'sport' 
                           ? 'bg-blue-100 text-blue-800' 
@@ -241,6 +242,11 @@ function SportGamesContent() {
                       }`}>
                         {sportGame.type}
                       </span>
+                      {sportGame.isDoubles && (
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                          Doubles
+                        </span>
+                      )}
                     </div>
                   </div>
                   

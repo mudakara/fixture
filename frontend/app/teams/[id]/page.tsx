@@ -226,8 +226,8 @@ function TeamDetailContent({ params }: { params: Promise<{ id: string }> }) {
 
   const canManageTeam = () => {
     const isAdmin = user?.role === 'super_admin' || user?.role === 'admin';
-    const isCaptain = team?.captainId._id === user?._id;
-    const isViceCaptain = team?.viceCaptainId._id === user?._id;
+    const isCaptain = team?.captainId._id === user?.id;
+    const isViceCaptain = team?.viceCaptainId._id === user?.id;
     return isAdmin || isCaptain || isViceCaptain;
   };
 
