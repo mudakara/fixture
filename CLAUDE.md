@@ -223,10 +223,12 @@ npm run dev         # Start both frontend (port 3500) and backend (port 3501)
    - Post-creation validation ensures no same-team matches in round 1
 
 2. **Knockout Bracket Generation**:
-   - Calculates `firstRoundMatches = Math.ceil(participants / 2)`
-   - Creates only necessary matches, not full bracket size
-   - Automatically handles walkovers for bye rounds
-   - Match linking properly handles variable first round sizes
+   - Calculates bracket size as next power of 2: `Math.pow(2, Math.ceil(Math.log2(totalParticipants)))`
+   - Determines bye count: `bracketSize - totalParticipants`
+   - First round only creates matches for participants without byes
+   - Bye participants automatically advance to round 2
+   - Proper match linking ensures correct tournament progression
+   - Handles walkovers when a match has only one participant
 
 3. **Team Name Display in Brackets**:
    - Frontend fetches teams via `/api/teams?eventId={id}`
@@ -239,6 +241,14 @@ npm run dev         # Start both frontend (port 3500) and backend (port 3501)
    - `avoidSameTeamFirstRound`: Prevents same-team matches (default: true)
    - `thirdPlaceMatch`: Adds 3rd place match for knockouts
    - Settings passed in fixture creation request body
+
+5. **Tournament Bracket Structure**:
+   - Bracket size = 2^(ceil(log2(participants))) for balanced tree
+   - Bye count = bracketSize - totalParticipants
+   - First round matches = (totalParticipants - byes) / 2
+   - Players with byes skip round 1 and enter in round 2
+   - Total rounds = ceil(log2(bracketSize))
+   - Example: 10 players → 16 bracket size → 6 byes → 2 first round matches
 
 ### Key Features
 
@@ -416,7 +426,8 @@ npm run dev         # Start both frontend (port 3500) and backend (port 3501)
 18. **Dynamic Routes** - Use consistent naming ([id] or [eventId]) to avoid conflicts
 19. **Fixture Creation** - Supports `avoidSameTeamFirstRound` setting to prevent same-team matches
 20. **Team Population** - Frontend fetches teams separately when teamId is not populated in responses
-21. **Match Generation** - Knockout brackets create only necessary matches, not full power of 2
+21. **Match Generation** - Knockout brackets use proper tournament structure with bye handling
+22. **Bracket Size Calculation** - Uses next power of 2 to ensure balanced tournament tree
 
 ## Azure AD Configuration
 
@@ -453,11 +464,22 @@ Required API Permissions:
 17. **Tournament Bracket Logic**: Round 1 should have the most matches, decreasing towards the final
 18. **Team Names Not Showing in Brackets**: Frontend creates a teamMap by fetching teams separately
 19. **Same-Team Match Prevention**: Use `avoidSameTeamFirstRound` setting in fixture creation
-20. **Empty Matches in Knockout**: First round only creates necessary matches (ceil(participants/2))
+20. **Empty Matches in Knockout**: First round creates matches only for non-bye participants
+21. **Bye Handling in Tournaments**: Players with byes advance directly to round 2
 
 ## Recent Updates
 
-### v0.4 Updates (Latest)
+### v0.5 Updates (Latest)
+- **Enhanced Knockout Bracket Generation with Proper Bye Handling**:
+  - Implemented proper tournament bracket structure following standard conventions
+  - Calculates bracket size as next power of 2 to accommodate all participants
+  - Players receiving byes advance directly to round 2 (standard tournament format)
+  - First round only creates matches for non-bye participants
+  - Bye participants are automatically placed in round 2 matches
+  - Improved logging shows bracket structure details (byes, matches per round, etc.)
+  - Ensures balanced tournament tree with proper advancement paths
+
+### v0.4 Updates
 - **Advanced Same-Team Match Avoidance for Player Fixtures**:
   - Implemented intelligent algorithm to prevent players from same team facing each other in round 1
   - Pre-creation validation checks if same-team avoidance is mathematically possible

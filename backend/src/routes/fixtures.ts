@@ -204,14 +204,13 @@ const generateKnockoutBracket = async (
   settings: any = {}
 ) => {
   const totalParticipants = participants.length;
-  const totalRounds = Math.ceil(Math.log2(totalParticipants));
-  // const bracketSize = Math.pow(2, totalRounds); // Currently unused
   const { randomizeSeeds = true, avoidSameTeamFirstRound = true } = settings;
   
   logger.info(`generateKnockoutBracket called with settings:`, { 
     randomizeSeeds, 
     avoidSameTeamFirstRound,
-    participantType 
+    participantType,
+    totalParticipants
   });
   
   let orderedParticipants = [...participants];
@@ -256,17 +255,44 @@ const generateKnockoutBracket = async (
     logger.info(`Randomization disabled, keeping original order`);
   }
   
-  // Create a tree structure to properly generate matches
+  // Calculate proper bracket structure for knockout tournament
+  // Find the next power of 2 that can accommodate all participants
+  const bracketSize = Math.pow(2, Math.ceil(Math.log2(totalParticipants)));
+  const firstRoundByes = bracketSize - totalParticipants;
+  const firstRoundParticipants = totalParticipants - firstRoundByes;
+  const firstRoundRealMatches = Math.floor(firstRoundParticipants / 2);
+  const playersAdvancingFromRound1 = firstRoundRealMatches + firstRoundByes;
+  
+  // Calculate total rounds needed (including round 1)
+  const totalRounds = Math.ceil(Math.log2(bracketSize));
+  
+  logger.info(`Bracket structure:`, {
+    totalParticipants,
+    bracketSize,
+    firstRoundByes,
+    firstRoundParticipants,
+    firstRoundRealMatches,
+    playersAdvancingFromRound1,
+    totalRounds
+  });
+  
   const matches: any[] = [];
   let matchNumber = 1;
   
-  // Calculate how many matches are needed in the first round
-  const firstRoundMatches = Math.ceil(totalParticipants / 2);
-  // const byeCount = bracketSize - totalParticipants; // Currently unused but kept for reference
-  
-  // Generate matches from first round to final
+  // Generate matches for all rounds
   for (let round = 1; round <= totalRounds; round++) {
-    const matchesInRound = round === 1 ? firstRoundMatches : Math.pow(2, totalRounds - round);
+    let matchesInRound: number;
+    
+    if (round === 1) {
+      // Round 1: Only create matches for participants who don't get byes
+      matchesInRound = firstRoundRealMatches;
+    } else {
+      // Subsequent rounds: Half the number of participants from previous round
+      const participantsInThisRound = Math.pow(2, totalRounds - round + 1);
+      matchesInRound = participantsInThisRound / 2;
+    }
+    
+    logger.info(`Round ${round}: Creating ${matchesInRound} matches`);
     
     for (let i = 0; i < matchesInRound; i++) {
       const match = new Match({
@@ -276,24 +302,28 @@ const generateKnockoutBracket = async (
         status: 'scheduled'
       });
       
-      // For first round, assign participants
+      // For first round, assign participants directly
       if (round === 1) {
         const homeIndex = i * 2;
         const awayIndex = i * 2 + 1;
         
-        if (homeIndex < orderedParticipants.length) {
-          match.homeParticipant = orderedParticipants[homeIndex];
+        // Only assign participants who don't get byes
+        // Participants with byes are handled separately
+        const nonByeParticipants = orderedParticipants.slice(0, firstRoundParticipants);
+        
+        if (homeIndex < nonByeParticipants.length) {
+          match.homeParticipant = nonByeParticipants[homeIndex];
         }
-        if (awayIndex < orderedParticipants.length) {
-          match.awayParticipant = orderedParticipants[awayIndex];
+        if (awayIndex < nonByeParticipants.length) {
+          match.awayParticipant = nonByeParticipants[awayIndex];
         }
         
         // Log first round matchups
-        logger.info(`Round 1, Match ${i + 1}: ${match.homeParticipant?.toString() || 'BYE'} vs ${match.awayParticipant?.toString() || 'BYE'}`);
+        logger.info(`Round 1, Match ${match.matchNumber}: ${match.homeParticipant?.toString() || 'BYE'} vs ${match.awayParticipant?.toString() || 'BYE'}`);
         
-        // Handle bye (when one participant is missing)
-        if (homeIndex < orderedParticipants.length && awayIndex >= orderedParticipants.length) {
-          match.winner = orderedParticipants[homeIndex];
+        // Handle cases where we don't have enough participants for a full match
+        if (match.homeParticipant && !match.awayParticipant) {
+          match.winner = match.homeParticipant;
           match.status = 'walkover';
           logger.info(`Match ${match.matchNumber} is a walkover, winner: ${match.winner}`);
         }
@@ -303,11 +333,19 @@ const generateKnockoutBracket = async (
     }
   }
   
+  // Handle participants who get byes (advance directly to round 2)
+  if (firstRoundByes > 0) {
+    const byeParticipants = orderedParticipants.slice(firstRoundParticipants);
+    logger.info(`Players receiving byes to Round 2: ${byeParticipants.map(p => p.toString()).join(', ')}`);
+    
+    // These participants will be automatically placed in round 2 matches
+    // We'll handle this in the match linking phase
+  }
+  
   // Link matches properly - winners advance to next round
   let matchIndex = 0;
   for (let round = 1; round < totalRounds; round++) {
-    const matchesInThisRound = round === 1 ? firstRoundMatches : Math.pow(2, totalRounds - round);
-    // const matchesInNextRound = Math.pow(2, totalRounds - (round + 1)); // Currently unused
+    const matchesInThisRound = round === 1 ? firstRoundRealMatches : Math.pow(2, totalRounds - round);
     
     for (let i = 0; i < matchesInThisRound; i++) {
       const currentMatch = matches[matchIndex + i];
@@ -325,6 +363,26 @@ const generateKnockoutBracket = async (
     }
     
     matchIndex += matchesInThisRound;
+  }
+  
+  // Handle bye participants advancing to round 2
+  if (firstRoundByes > 0) {
+    const byeParticipants = orderedParticipants.slice(firstRoundParticipants);
+    const round2Matches = matches.filter(m => m.round === 2);
+    
+    // Place bye participants in round 2 matches
+    let byeIndex = 0;
+    for (const round2Match of round2Matches) {
+      if (byeIndex < byeParticipants.length) {
+        if (!round2Match.homeParticipant) {
+          round2Match.homeParticipant = byeParticipants[byeIndex++];
+          logger.info(`Bye participant ${round2Match.homeParticipant} placed in Round 2, Match ${round2Match.matchNumber} (home)`);
+        } else if (!round2Match.awayParticipant) {
+          round2Match.awayParticipant = byeParticipants[byeIndex++];
+          logger.info(`Bye participant ${round2Match.awayParticipant} placed in Round 2, Match ${round2Match.matchNumber} (away)`);
+        }
+      }
+    }
   }
   
   // MANDATORY VALIDATION: Check for same-team matches in round 1
