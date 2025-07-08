@@ -11,6 +11,8 @@ The application follows an Event-Team-Player hierarchy:
 - **Organization** hosts multiple **Events**
 - Each **Event** contains multiple **Teams**
 - Each **Team** has multiple **Players** (users)
+- **Events** can have multiple **Fixtures** for sports/games
+- **Fixtures** contain **Matches** between players or teams
 
 ## Development Commands
 
@@ -40,9 +42,9 @@ npm run dev         # Start both frontend (port 3500) and backend (port 3501)
 ## Architecture
 
 ### Backend Structure
-- `backend/src/models/` - MongoDB models (User, Event, Team, Fixture, AuditLog, Permission)
+- `backend/src/models/` - MongoDB models (User, Event, Team, Fixture, Match, SportGame, AuditLog, Permission)
 - `backend/src/middleware/` - Auth and logging middleware
-- `backend/src/routes/` - API endpoints (auth, users, permissions, events, teams)
+- `backend/src/routes/` - API endpoints (auth, users, permissions, events, teams, dashboard, sportgames, fixtures)
 - `backend/src/services/` - Business logic (authService, azureAdService, permissionService)
 - `backend/src/config/` - Configuration files (database, Azure AD)
 - `backend/src/utils/` - Utilities (logger)
@@ -52,22 +54,30 @@ npm run dev         # Start both frontend (port 3500) and backend (port 3501)
 ### Frontend Structure
 - `frontend/app/` - Next.js 14 app directory
   - `login/` - Microsoft SSO login page
-  - `dashboard/` - Protected dashboard with statistics and quick actions
+  - `dashboard/` - Protected dashboard with real-time statistics and quick actions
   - `profile/` - User profile page with tabs (Overview, Team Info, Activity Log)
   - `roles/` - User and permissions management (super admin only)
   - `events/` - Event management (list, create, detail views)
-  - `events/[id]/` - Event detail with teams
+  - `events/[eventId]/` - Event detail with teams (fixed for Next.js 15 async params)
   - `events/[eventId]/teams/create` - Create team for event
   - `teams/` - Team listing with event filter
-  - `teams/[id]/` - Team detail with players
+  - `teams/[id]/` - Team detail with players and bulk player creation
   - `teams/[id]/players` - Manage team players
-  - `fixtures/`, `players/`, `reports/`, `settings/` - Feature pages
+  - `users/` - User management page with filters and actions
+  - `activity/` - Sports and games activity management
+  - `fixtures/` - Fixture management with knockout/round-robin tournaments
+  - `fixtures/create` - Create new fixtures with participant selection
+  - `fixtures/[id]/` - Fixture detail page with bracket/match visualization
+  - `fixtures/[id]/standings` - Standings page for round-robin fixtures
+  - `players/`, `reports/`, `settings/` - Feature pages
 - `frontend/src/components/` - React components (AuthGuard, Header)
 - `frontend/src/store/` - Redux store and auth slice
 - `frontend/src/providers/` - MSAL and Redux providers
 - `frontend/src/hooks/` - Custom hooks (useAuth)
 - `frontend/src/config/` - MSAL configuration
+- `frontend/src/utils/` - Utilities (getImageUrl for handling uploads)
 - `frontend/middleware.ts` - Next.js middleware for route protection
+- `frontend/next.config.ts` - Next.js configuration with image domains
 
 ### Database Models
 
@@ -101,7 +111,7 @@ npm run dev         # Start both frontend (port 3500) and backend (port 3501)
   endDate: Date
   createdBy: ObjectId (User)
   isActive: boolean
-  // Virtual fields: isOngoing, hasEnded, isUpcoming
+  // Virtual fields: isOngoing, hasEnded, isUpcoming, status
 }
 ```
 
@@ -120,6 +130,87 @@ npm run dev         # Start both frontend (port 3500) and backend (port 3501)
 }
 ```
 
+#### SportGame Model
+```typescript
+{
+  title: string
+  type: 'sport' | 'game'
+  category: string
+  description?: string
+  rules?: string
+  minPlayers: number
+  maxPlayers: number
+  equipment?: string[]
+  duration?: number
+  createdBy: ObjectId (User)
+  isActive: boolean
+}
+```
+
+#### Fixture Model
+```typescript
+{
+  name: string
+  description?: string
+  eventId: ObjectId (Event)
+  sportGameId: ObjectId (SportGame)
+  format: 'knockout' | 'roundrobin'
+  participantType: 'player' | 'team'
+  participants: [ObjectId] // Array of player IDs or team IDs
+  status: 'draft' | 'scheduled' | 'in_progress' | 'completed' | 'cancelled'
+  startDate: Date
+  endDate?: Date
+  settings: {
+    // Knockout specific
+    thirdPlaceMatch?: boolean
+    randomizeSeeds?: boolean
+    avoidSameTeamFirstRound?: boolean
+    // Round-robin specific
+    rounds?: number
+    homeAndAway?: boolean
+    // Common settings
+    matchDuration?: number
+    venue?: string
+    pointsForWin?: number
+    pointsForDraw?: number
+    pointsForLoss?: number
+  }
+  createdBy: ObjectId (User)
+  isActive: boolean
+}
+```
+
+#### Match Model
+```typescript
+{
+  fixtureId: ObjectId (Fixture)
+  round: number
+  matchNumber: number
+  homeParticipant?: ObjectId // Player or Team ID
+  awayParticipant?: ObjectId // Player or Team ID
+  homeScore?: number
+  awayScore?: number
+  winner?: ObjectId
+  loser?: ObjectId
+  status: 'scheduled' | 'in_progress' | 'completed' | 'cancelled' | 'postponed' | 'walkover'
+  scheduledDate?: Date
+  actualDate?: Date
+  venue?: string
+  duration?: number
+  // Knockout specific
+  nextMatchId?: ObjectId
+  previousMatchIds?: [ObjectId]
+  isThirdPlaceMatch?: boolean
+  // Match details
+  notes?: string
+  scoreDetails?: {
+    periods?: Array
+    overtime?: boolean
+    penaltyShootout?: object
+  }
+}
+```
+
 ### Key Features
 
 1. **Event Management System**
@@ -135,152 +226,161 @@ npm run dev         # Start both frontend (port 3500) and backend (port 3501)
    - Assign captains and vice-captains from user list
    - Upload team logos (5MB max)
    - Manage team players (add/remove)
+   - Bulk player creation with "Name <email>" format
    - Filter teams by event
    - Captain and vice-captain cannot be the same person
    - Automatic addition of captain/vice-captain to players list
+   - Searchable dropdown for captain/vice-captain selection
 
-3. **Role-Based Access Control**
+3. **Sports & Games Activity Management**
+   - Create and manage sports/games activities
+   - Categorize by type (sport or game)
+   - Define rules, equipment, player limits, and duration
+   - Admin and super admin access only
+   - Activity library for fixture creation
+
+4. **Fixture Management System**
+   - Create knockout and round-robin tournaments
+   - Support for both player and team fixtures
+   - Automatic bracket generation for knockout tournaments
+   - Round-robin schedule generation with configurable rounds
+   - Settings to avoid same-team matchups in first round
+   - Match result recording and winner progression
+   - Standings calculation for round-robin fixtures
+   - Fixture filtering by event, format, and status
+
+5. **Dashboard with Real-Time Statistics**
+   - Total counts for events, teams, users, and fixtures
+   - Active/upcoming events display
+   - Role-based quick actions
+   - Recent activity overview
+   - Visual statistics cards with icons
+
+6. **Role-Based Access Control**
    - Super Admin: Full system access, user management, permissions configuration
-   - Admin: Create/manage events and teams
-   - Captain: Manage own team and players
+   - Admin: Create/manage events, teams, and fixtures
+   - Captain: Manage own team and players, create fixtures
    - Vice Captain: Same permissions as Captain
    - Player: View team and event information
 
-4. **User Management System** (Super Admin only)
-   - View all users with sortable columns (Name, Role)
+7. **User Management System** (Super Admin only)
+   - View all users with search and role filters
    - Create new users manually with Add User button
-   - Edit user roles with improved dropdown UI
+   - Edit user roles and status (active/inactive)
    - Delete users (except super admins who are protected)
-   - Azure AD to local user conversion support
-   - Auth type indicator (Azure AD vs Local)
-   - User statistics dashboard
+   - Toggle user active status
+   - User statistics and last login tracking
 
-5. **Permissions System**
-   - Dynamic role-based permissions configuration
-   - Resource-based access control (users, events, teams, fixtures, players, reports, roles, permissions)
-   - CRUD actions per resource (create, read, update, delete)
-   - Visual permissions matrix for easy management
-   - Default permissions for each role
-
-6. **Enhanced UI Components**
+8. **Enhanced UI Components**
    - Header with logo, navigation menu, user info, and logout
    - User dropdown menu with profile and settings links
    - Dashboard with statistics cards and quick actions
    - Profile page with Overview, Team Info, and Activity Log tabs
    - Responsive design with mobile menu support
-   - Image preview for uploads
+   - Image preview for uploads with Next.js Image component
    - Searchable dropdowns for user selection
    - Sortable table columns
+   - Loading states and error handling
+   - Filter panels for lists
 
-7. **Logging System**
+9. **Logging System**
    - All actions logged to files in `backend/logs/`
    - Audit trail stored in MongoDB with proper schema
    - Winston logger with rotation
    - Tracks user actions: create, update, delete, login, logout
    - Request logging with duration and status codes
 
-8. **Authentication**
-   - JWT with httpOnly cookies
-   - Microsoft Azure AD SSO integration (primary authentication method)
-   - Automatic user creation/update on first login
-   - Local to Azure AD conversion when same email logs in via SSO
-   - Support for multi-tenant and personal Microsoft accounts
-   - Default super admin: admin@matchmakerpro.com / changethispassword (local auth)
-   - Session management with Redux
+10. **Authentication**
+    - JWT with httpOnly cookies
+    - Microsoft Azure AD SSO integration (primary authentication method)
+    - Automatic user creation/update on first login
+    - Local to Azure AD conversion when same email logs in via SSO
+    - Support for multi-tenant and personal Microsoft accounts
+    - Default super admin: admin@matchmakerpro.com / changethispassword (local auth)
+    - Session management with Redux
 
 ## API Endpoints
 
 ### Authentication
 - `POST /api/auth/microsoft` - Authenticate with Microsoft token
-  - Body: `{ token: string }`
-  - Returns: `{ success: boolean, user: User, token: string }`
 - `POST /api/auth/login` - Local authentication
-  - Body: `{ email: string, password: string }`
-  - Returns: `{ success: boolean, user: User, token: string }`
 - `POST /api/auth/logout` - Logout user
-  - Returns: `{ success: boolean, message: string }`
 - `GET /api/auth/me` - Get current user
-  - Returns: `{ success: boolean, user: User }`
+
+### Dashboard
+- `GET /api/dashboard/stats` - Get dashboard statistics
+  - Returns: counts for events, teams, users, fixtures, and role-specific data
 
 ### Events
-- `GET /api/events` - Get all events
-  - Returns: `{ success: boolean, events: Event[] }`
+- `GET /api/events` - Get all events with filters
 - `POST /api/events` - Create new event (Admin only)
-  - Body: FormData with `name`, `description`, `startDate`, `endDate`, `eventImage`
-  - Returns: `{ success: boolean, event: Event }`
 - `GET /api/events/:id` - Get event with teams
-  - Returns: `{ success: boolean, event: Event, teams: Team[] }`
 - `PUT /api/events/:id` - Update event (Admin only)
-  - Body: FormData with updated fields
-  - Returns: `{ success: boolean, event: Event }`
 - `DELETE /api/events/:id` - Soft delete event (Admin only)
-  - Returns: `{ success: boolean, message: string }`
 - `GET /api/events/:id/stats` - Get event statistics
-  - Returns: `{ success: boolean, stats: EventStats }`
 
 ### Teams
 - `GET /api/teams` - Get all teams (with optional event filter)
-  - Query: `?eventId=xxx`
-  - Returns: `{ success: boolean, teams: Team[] }`
 - `POST /api/teams` - Create new team (Admin only)
-  - Body: FormData with `name`, `eventId`, `captainId`, `viceCaptainId`, `teamLogo`
-  - Returns: `{ success: boolean, team: Team }`
 - `GET /api/teams/:id` - Get team details
-  - Returns: `{ success: boolean, team: Team }`
 - `PUT /api/teams/:id` - Update team
-  - Body: FormData with updated fields
-  - Returns: `{ success: boolean, team: Team }`
 - `DELETE /api/teams/:id` - Soft delete team (Admin only)
-  - Returns: `{ success: boolean, message: string }`
 - `POST /api/teams/:id/players` - Add player to team
-  - Body: `{ playerId: string }`
-  - Returns: `{ success: boolean, player: User }`
+- `POST /api/teams/:id/players/bulk` - Bulk create and add players
+  - Body: `{ players: ["Name1 <email1>", "Name2 <email2>"] }`
 - `DELETE /api/teams/:id/players/:playerId` - Remove player from team
-  - Returns: `{ success: boolean, message: string }`
 
-### Users (Super Admin only)
-- `GET /api/users` - Get all users
-  - Returns: `{ success: boolean, users: User[] }`
+### Users
+- `GET /api/users` - Get all users with role filter support
 - `POST /api/users` - Create new user
-  - Body: `{ name: string, email: string, password: string, role: string }`
-  - Returns: `{ success: boolean, user: User }`
-- `PUT /api/users/:userId/role` - Update user role
-  - Body: `{ role: string }`
-  - Returns: `{ success: boolean, user: User }`
-- `DELETE /api/users/:userId` - Delete user
-  - Returns: `{ success: boolean, message: string }`
+- `GET /api/users/:id` - Get user details
+- `PUT /api/users/:id` - Update user (including role and status)
+- `DELETE /api/users/:id` - Delete user (Super Admin only)
 - `GET /api/users/stats` - Get user statistics
-  - Returns: `{ success: boolean, stats: UserStats }`
+
+### Sports & Games
+- `GET /api/sportgames` - Get all activities
+- `POST /api/sportgames` - Create new activity (Admin only)
+- `GET /api/sportgames/:id` - Get activity details
+- `PUT /api/sportgames/:id` - Update activity (Admin only)
+- `DELETE /api/sportgames/:id` - Soft delete activity (Admin only)
+
+### Fixtures
+- `GET /api/fixtures` - Get all fixtures with filters
+  - Query: `?eventId=xxx&format=knockout&status=scheduled`
+- `POST /api/fixtures` - Create new fixture with auto-match generation
+  - Body: includes format, participants, settings
+- `GET /api/fixtures/:id` - Get fixture with matches and participants
+- `PUT /api/fixtures/:fixtureId/matches/:matchId` - Update match result
+- `GET /api/fixtures/:id/standings` - Get standings for round-robin
+- `DELETE /api/fixtures/:id` - Soft delete fixture
 
 ### Permissions (Super Admin only)
 - `GET /api/permissions` - Get all permissions
-  - Returns: `{ success: boolean, permissions: Permission[] }`
 - `GET /api/permissions/:role` - Get permissions for a role
-  - Returns: `{ success: boolean, permissions: Permission }`
 - `PUT /api/permissions/:role` - Update role permissions
-  - Body: `{ permissions: Permission[] }`
-  - Returns: `{ success: boolean, permissions: Permission }`
 - `POST /api/permissions/check` - Check user permission
-  - Body: `{ resource: string, action: string }`
-  - Returns: `{ success: boolean, hasPermission: boolean }`
 
 ## Important Conventions
 
-1. **TypeScript** - Both frontend and backend use TypeScript strictly
-2. **Environment Variables** - Copy `.env.example` files to `.env` files before running
-3. **Git Commits** - Push to https://github.com/mudakara/fixture.git
-4. **Security** - Never commit `.env` files or expose secrets
-5. **Logging** - Use the logger utility for all backend logging
-6. **Error Handling** - All errors should be logged and returned with appropriate HTTP status codes
-7. **Ports** - Frontend runs on port 3500, Backend API runs on port 3501
-8. **CORS** - Backend configured to accept requests only from http://localhost:3500
-9. **Authentication Flow** - Users login via Microsoft → Backend validates token → Creates/updates user → Returns JWT
-10. **Role Naming** - Roles use underscores (super_admin, vice_captain) in database
-11. **File Uploads** - Multer handles image uploads for events and teams, stored in backend/uploads/
-12. **Data Relationships** - Events → Teams → Players (Users) hierarchy with MongoDB references
-13. **Soft Deletes** - Events and teams use isActive flag instead of hard deletion
-14. **Image Formats** - Supported: JPEG, JPG, PNG, GIF, WebP (5MB max)
-15. **Date Validation** - Event end date must be after or equal to start date
+1. **Next.js 15 Compatibility** - Use `React.use()` for async params in page components
+2. **TypeScript** - Both frontend and backend use TypeScript strictly
+3. **Environment Variables** - Copy `.env.example` files to `.env` files before running
+4. **Git Commits** - Push to https://github.com/mudakara/fixture.git
+5. **Security** - Never commit `.env` files or expose secrets
+6. **Logging** - Use the logger utility for all backend logging
+7. **Error Handling** - All errors should be logged and returned with appropriate HTTP status codes
+8. **Ports** - Frontend runs on port 3500, Backend API runs on port 3501
+9. **CORS** - Backend configured to accept requests only from http://localhost:3500
+10. **Authentication Flow** - Users login via Microsoft → Backend validates token → Creates/updates user → Returns JWT
+11. **Role Naming** - Roles use underscores (super_admin, vice_captain) in database
+12. **File Uploads** - Multer handles image uploads for events and teams, stored in backend/uploads/
+13. **Data Relationships** - Events → Teams → Players (Users) hierarchy with MongoDB references
+14. **Soft Deletes** - Events, teams, and fixtures use isActive flag instead of hard deletion
+15. **Image Formats** - Supported: JPEG, JPG, PNG, GIF, WebP (5MB max)
+16. **Date Validation** - Event end date must be after or equal to start date
+17. **Bulk Operations** - Support comma-separated values for bulk player creation
+18. **Dynamic Routes** - Use consistent naming ([id] or [eventId]) to avoid conflicts
 
 ## Azure AD Configuration
 
@@ -304,34 +404,76 @@ Required API Permissions:
 4. **Azure AD Errors**: Check redirect URI matches exactly in Azure Portal
 5. **TypeScript Errors**: Run `npm run build` in backend to check for errors
 6. **localStorage Errors**: All localStorage access is wrapped with `typeof window !== 'undefined'`
-7. **AuditLog Validation**: Use correct schema - entity (not resource), action enum values
+7. **AuditLog Validation**: Use correct action enum values (create, update, delete, login, logout)
 8. **File Upload Errors**: Ensure backend/uploads directory exists with write permissions
-9. **Image Not Loading**: Check static file serving is configured in Express
+9. **Image Not Loading**: Configure Next.js remotePatterns for localhost:3501
 10. **Team Creation Fails**: Verify captain and vice-captain are different users
+11. **Next.js 15 Async Params**: Use React.use() to unwrap Promise params
+12. **Dynamic Route Conflicts**: Ensure consistent folder naming in app directory
+13. **Dropdown Not Closing**: Implement proper onBlur handlers with setTimeout
+14. **404 After Navigation**: Use correct route paths with template literals
+15. **Bulk Player Creation**: Parse "Name <email>" format correctly
+16. **Fixture Routes 404**: Ensure routes are mounted correctly (e.g., `/api/fixtures` not `/api` + `/fixtures`)
+17. **Tournament Bracket Logic**: Round 1 should have the most matches, decreasing towards the final
 
 ## Recent Updates
 
-### Event-Team-Player Architecture (Latest)
-- Implemented hierarchical structure for organizations
-- Created Event and Team models with relationships
-- Added comprehensive CRUD operations for events and teams
-- Implemented file upload for images
-- Created UI for event and team management
-- Added player management within teams
+### Latest Bug Fixes and Improvements (Current Session)
+- **Fixed Team Selection Bug in Fixtures**: Teams are now loaded upfront and filtered client-side
+- **Fixed Fixture Routes 404 Error**: Corrected API endpoint routing configuration
+- **Created Fixture Detail Pages**: Added `/fixtures/[id]` and `/fixtures/[id]/standings` pages
+- **Improved UX on Fixture Detail Page**: Made all text darker and more readable
+- **Fixed Tournament Bracket Generation**: 
+  - Corrected round numbering (now starts from Round 1)
+  - Fixed match linking algorithm for proper tournament tree structure
+  - Added automatic advancement for walkover matches
+  - Winners now properly advance to the correct position in next round
 
-### User Management System
-- Added sortable columns for user list
-- Implemented user deletion (except super admins)
-- Added Azure AD to local user conversion
-- Created user statistics endpoint
+### Fixture Management System
+- Created Fixture and Match models for tournament management
+- Implemented knockout bracket generation with seeding options
+- Added round-robin schedule generation with configurable rounds
+- Created fixture list page with filtering capabilities
+- Built fixture creation form with participant selection
+- Added match result recording functionality
+- Implemented standings calculation for round-robin tournaments
+- Support for both player and team fixtures
+- Interactive tournament bracket visualization
+- Match update modal for recording results
 
-### UI Enhancements
-- Created responsive header with navigation
-- Added user profile page with tabs
-- Implemented dashboard with statistics
-- Added dropdown menus and mobile support
+### Dashboard Enhancement
+- Replaced placeholder dashboard with real-time statistics
+- Added role-based quick actions and navigation
+- Implemented statistics API endpoint
+- Added visual cards with icons for better UX
 
-### Permission System
-- Implemented dynamic role-based permissions
-- Created visual permission matrix
-- Added permission checking endpoints
+### Sports & Games Activity Module
+- Created SportGame model for activity management
+- Built activity management pages (list, create, edit)
+- Added admin-only access control
+- Renamed menu from "Sports & Games" to "Activity"
+
+### Bulk Player Management
+- Added bulk player creation functionality
+- Support for "Name <email>" format parsing
+- Automatic user creation with player role
+- Team association during bulk creation
+
+### Next.js 15 Compatibility
+- Fixed async params warning with React.use()
+- Updated all dynamic routes to handle Promise params
+- Resolved image loading configuration issues
+
+### UI/UX Improvements
+- Fixed dropdown closing behavior in team creation
+- Added proper navigation after entity creation
+- Implemented comprehensive error handling
+- Created user management page with filters
+- Enhanced text readability across fixture pages
+
+### Previous Updates
+- Event-Team-Player Architecture implementation
+- User Management System with role editing
+- Enhanced UI components and responsive design
+- Permission System with visual matrix
+- Authentication flow improvements

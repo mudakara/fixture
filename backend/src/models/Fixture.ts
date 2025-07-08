@@ -1,74 +1,142 @@
 import mongoose, { Document, Schema } from 'mongoose';
 
-export enum FixtureStatus {
-  SCHEDULED = 'scheduled',
-  IN_PROGRESS = 'in_progress',
-  COMPLETED = 'completed',
-  CANCELLED = 'cancelled',
-  POSTPONED = 'postponed'
-}
-
 export interface IFixture extends Document {
-  homeTeam: mongoose.Types.ObjectId;
-  awayTeam: mongoose.Types.ObjectId;
-  sport: string;
-  venue: string;
-  scheduledDate: Date;
-  status: FixtureStatus;
-  homeTeamScore?: number;
-  awayTeamScore?: number;
-  notes?: string;
+  name: string;
+  description?: string;
+  eventId: mongoose.Types.ObjectId;
+  sportGameId: mongoose.Types.ObjectId;
+  format: 'knockout' | 'roundrobin';
+  participantType: 'player' | 'team';
+  participants: mongoose.Types.ObjectId[]; // Array of player IDs or team IDs
+  status: 'draft' | 'scheduled' | 'in_progress' | 'completed' | 'cancelled';
+  startDate: Date;
+  endDate?: Date;
+  settings: {
+    // Knockout specific settings
+    thirdPlaceMatch?: boolean;
+    randomizeSeeds?: boolean;
+    avoidSameTeamFirstRound?: boolean; // For player fixtures, avoid same team players in first round
+    
+    // Round-robin specific settings
+    rounds?: number; // Number of times each participant plays each other
+    homeAndAway?: boolean; // For team fixtures
+    
+    // Common settings
+    matchDuration?: number; // in minutes
+    venue?: string;
+    pointsForWin?: number;
+    pointsForDraw?: number;
+    pointsForLoss?: number;
+  };
   createdBy: mongoose.Types.ObjectId;
+  isActive: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
 
-const fixtureSchema = new Schema<IFixture>(
+const FixtureSchema = new Schema<IFixture>(
   {
-    homeTeam: {
-      type: Schema.Types.ObjectId,
-      ref: 'Team',
-      required: [true, 'Home team is required']
-    },
-    awayTeam: {
-      type: Schema.Types.ObjectId,
-      ref: 'Team',
-      required: [true, 'Away team is required']
-    },
-    sport: {
+    name: {
       type: String,
-      required: [true, 'Sport type is required']
-    },
-    venue: {
-      type: String,
-      required: [true, 'Venue is required'],
+      required: true,
       trim: true
     },
-    scheduledDate: {
-      type: Date,
-      required: [true, 'Scheduled date is required']
+    description: {
+      type: String,
+      trim: true
     },
+    eventId: {
+      type: Schema.Types.ObjectId,
+      ref: 'Event',
+      required: true
+    },
+    sportGameId: {
+      type: Schema.Types.ObjectId,
+      ref: 'SportGame',
+      required: true
+    },
+    format: {
+      type: String,
+      enum: ['knockout', 'roundrobin'],
+      required: true
+    },
+    participantType: {
+      type: String,
+      enum: ['player', 'team'],
+      required: true
+    },
+    participants: [{
+      type: Schema.Types.ObjectId,
+      refPath: 'participantType'
+    }],
     status: {
       type: String,
-      enum: Object.values(FixtureStatus),
-      default: FixtureStatus.SCHEDULED
+      enum: ['draft', 'scheduled', 'in_progress', 'completed', 'cancelled'],
+      default: 'draft'
     },
-    homeTeamScore: {
-      type: Number,
-      min: 0
+    startDate: {
+      type: Date,
+      required: true
     },
-    awayTeamScore: {
-      type: Number,
-      min: 0
+    endDate: {
+      type: Date
     },
-    notes: {
-      type: String,
-      maxlength: [500, 'Notes cannot exceed 500 characters']
+    settings: {
+      // Knockout settings
+      thirdPlaceMatch: {
+        type: Boolean,
+        default: false
+      },
+      randomizeSeeds: {
+        type: Boolean,
+        default: true
+      },
+      avoidSameTeamFirstRound: {
+        type: Boolean,
+        default: true
+      },
+      
+      // Round-robin settings
+      rounds: {
+        type: Number,
+        default: 1,
+        min: 1
+      },
+      homeAndAway: {
+        type: Boolean,
+        default: false
+      },
+      
+      // Common settings
+      matchDuration: {
+        type: Number,
+        min: 1
+      },
+      venue: {
+        type: String,
+        trim: true
+      },
+      pointsForWin: {
+        type: Number,
+        default: 3
+      },
+      pointsForDraw: {
+        type: Number,
+        default: 1
+      },
+      pointsForLoss: {
+        type: Number,
+        default: 0
+      }
     },
     createdBy: {
       type: Schema.Types.ObjectId,
       ref: 'User',
       required: true
+    },
+    isActive: {
+      type: Boolean,
+      default: true
     }
   },
   {
@@ -76,8 +144,29 @@ const fixtureSchema = new Schema<IFixture>(
   }
 );
 
-fixtureSchema.index({ homeTeam: 1, awayTeam: 1, scheduledDate: 1 });
+// Indexes
+FixtureSchema.index({ eventId: 1 });
+FixtureSchema.index({ sportGameId: 1 });
+FixtureSchema.index({ status: 1 });
+FixtureSchema.index({ participantType: 1 });
+FixtureSchema.index({ createdBy: 1 });
 
-const Fixture = mongoose.model<IFixture>('Fixture', fixtureSchema);
+// Virtual to get participant count
+FixtureSchema.virtual('participantCount').get(function() {
+  return this.participants.length;
+});
+
+// Validate participant count based on format
+FixtureSchema.pre('save', function(next) {
+  if (this.format === 'knockout' && this.participants.length < 2) {
+    next(new Error('Knockout format requires at least 2 participants'));
+  } else if (this.format === 'roundrobin' && this.participants.length < 2) {
+    next(new Error('Round-robin format requires at least 2 participants'));
+  } else {
+    next();
+  }
+});
+
+const Fixture = mongoose.model<IFixture>('Fixture', FixtureSchema);
 
 export default Fixture;
