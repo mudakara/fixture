@@ -57,6 +57,8 @@ interface Match {
   scheduledDate?: string;
   actualDate?: string;
   notes?: string;
+  nextMatchId?: string;
+  previousMatchIds?: string[];
 }
 
 interface Participant {
@@ -143,6 +145,15 @@ function FixtureDetailContent({ params }: { params: Promise<Params> }) {
       setFixture(response.data.fixture);
       setMatches(response.data.matches || []);
       setParticipants(response.data.participants || []);
+      
+      // Debug: Check if matches have nextMatchId
+      console.log('Matches data:', response.data.matches?.map((m: any) => ({
+        id: m._id,
+        round: m.round,
+        matchNumber: m.matchNumber,
+        nextMatchId: m.nextMatchId,
+        previousMatchIds: m.previousMatchIds
+      })));
       
       // If it's a player fixture, fetch team data
       if (response.data.fixture.participantType === 'player' && response.data.fixture.eventId) {
@@ -267,6 +278,22 @@ function FixtureDetailContent({ params }: { params: Promise<Params> }) {
     for (let i = 1; i <= rounds; i++) {
       roundMatches[i] = matches.filter(m => m.round === i).sort((a, b) => a.matchNumber - b.matchNumber);
     }
+    
+    // Debug logging for odd number scenarios
+    if (participants.length % 2 === 1) {
+      console.log('Odd number of participants:', participants.length);
+      console.log('Round 1 matches:', roundMatches[1]?.length);
+      console.log('Round 2 matches:', roundMatches[2]?.length);
+      console.log('Match details:', matches.map(m => ({
+        id: m._id,
+        round: m.round,
+        matchNumber: m.matchNumber,
+        nextMatchId: m.nextMatchId,
+        previousMatchIds: m.previousMatchIds,
+        homeParticipant: m.homeParticipant?.name || m.homeParticipant?.displayName || 'BYE',
+        awayParticipant: m.awayParticipant?.name || m.awayParticipant?.displayName || 'BYE'
+      })));
+    }
 
     const matchHeight = fixture?.participantType === 'player' ? 150 : 125;
     const matchWidth = 300;
@@ -276,13 +303,108 @@ function FixtureDetailContent({ params }: { params: Promise<Params> }) {
     // Calculate total height needed
     const totalHeight = Math.pow(2, rounds - 1) * (matchHeight + matchVerticalGap);
 
+    // Calculate positions working backwards from the final
+    const matchPositions: { [key: string]: number } = {};
+    
+    // Start with the final round (centered)
+    if (roundMatches[rounds]) {
+      roundMatches[rounds].forEach((match, idx) => {
+        matchPositions[match._id] = totalHeight / 2;
+      });
+    }
+    
+    // Work backwards through rounds
+    for (let round = rounds - 1; round >= 1; round--) {
+      const currentRoundMatches = roundMatches[round] || [];
+      const nextRoundMatches = roundMatches[round + 1] || [];
+      
+      currentRoundMatches.forEach((match, matchIndex) => {
+        // Find which match in the next round this feeds into
+        const nextMatch = nextRoundMatches.find(nm => 
+          match.nextMatchId && (nm._id === match.nextMatchId || nm._id.toString() === match.nextMatchId.toString())
+        );
+        
+        if (nextMatch && matchPositions[nextMatch._id] !== undefined) {
+          // Special handling for odd number of participants
+          if (round === 1 && participants.length % 2 === 1) {
+            // For odd numbers, the single round 1 match should align with where it feeds into round 2
+            // Check if the next match already has a participant (bye player)
+            const hasHomeParticipant = nextMatch.homeParticipant != null;
+            const hasAwayParticipant = nextMatch.awayParticipant != null;
+            
+            console.log('Round 1 match positioning:', {
+              matchId: match._id,
+              nextMatchId: nextMatch._id,
+              hasHomeParticipant,
+              hasAwayParticipant,
+              homeParticipant: nextMatch.homeParticipant?.name || nextMatch.homeParticipant?.displayName || 'None',
+              awayParticipant: nextMatch.awayParticipant?.name || nextMatch.awayParticipant?.displayName || 'None'
+            });
+            
+            if (hasHomeParticipant && !hasAwayParticipant) {
+              // Bye player is in home position, so this match feeds to away position
+              const offset = (matchHeight + matchVerticalGap) / 2;
+              matchPositions[match._id] = matchPositions[nextMatch._id] + offset;
+              console.log('Positioning round 1 match to BOTTOM (away position)');
+            } else if (!hasHomeParticipant && hasAwayParticipant) {
+              // Bye player is in away position, so this match feeds to home position
+              const offset = -(matchHeight + matchVerticalGap) / 2;
+              matchPositions[match._id] = matchPositions[nextMatch._id] + offset;
+              console.log('Positioning round 1 match to TOP (home position)');
+            } else {
+              // Check previousMatchIds for position
+              const nextMatchPreviousIds = nextMatch.previousMatchIds || [];
+              const feedingPosition = nextMatchPreviousIds.findIndex(id => 
+                id && (id === match._id || id.toString() === match._id.toString())
+              );
+              
+              if (feedingPosition === 0) {
+                // This match feeds to home position (top)
+                const offset = -(matchHeight + matchVerticalGap) / 2;
+                matchPositions[match._id] = matchPositions[nextMatch._id] + offset;
+              } else if (feedingPosition === 1) {
+                // This match feeds to away position (bottom)
+                const offset = (matchHeight + matchVerticalGap) / 2;
+                matchPositions[match._id] = matchPositions[nextMatch._id] + offset;
+              } else {
+                // Default: align with next match
+                matchPositions[match._id] = matchPositions[nextMatch._id];
+              }
+            }
+          } else {
+            // Standard logic for other rounds
+            const feedingMatches = currentRoundMatches.filter(m => 
+              m.nextMatchId && (m.nextMatchId === nextMatch._id || m.nextMatchId.toString() === nextMatch._id.toString())
+            );
+            
+            if (feedingMatches.length === 1) {
+              // Single match feeding in - align it with the next match
+              matchPositions[match._id] = matchPositions[nextMatch._id];
+            } else if (feedingMatches.length === 2) {
+              // Two matches feeding in - position them above and below
+              const feedingIndex = feedingMatches.findIndex(m => m._id === match._id);
+              const offset = (feedingIndex === 0 ? -1 : 1) * (matchHeight + matchVerticalGap) / 2;
+              matchPositions[match._id] = matchPositions[nextMatch._id] + offset;
+            } else {
+              // Multiple matches - distribute evenly
+              const spacing = totalHeight / currentRoundMatches.length;
+              matchPositions[match._id] = (matchIndex + 0.5) * spacing;
+            }
+          }
+        } else {
+          // No next match found - distribute evenly
+          const spacing = totalHeight / currentRoundMatches.length;
+          matchPositions[match._id] = (matchIndex + 0.5) * spacing;
+        }
+      });
+    }
+
     return (
-      <div className="overflow-x-auto pb-8">
+      <div className="overflow-x-auto pb-8 bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl p-6">
         <div className="relative" style={{ minHeight: `${totalHeight + 100}px` }}>
           {Object.entries(roundMatches).map(([round, roundMatchList], roundIndex) => {
             const roundNumber = parseInt(round);
             const matchesInThisRound = roundMatchList.length;
-            const verticalSpacing = totalHeight / matchesInThisRound;
             
             return (
               <div key={round} className="absolute" style={{ left: `${roundIndex * (matchWidth + roundGap)}px` }}>
@@ -294,7 +416,7 @@ function FixtureDetailContent({ params }: { params: Promise<Params> }) {
                 </h3>
                 
                 {roundMatchList.map((match, matchIndex) => {
-                  const centerY = (matchIndex + 0.5) * verticalSpacing;
+                  const centerY = matchPositions[match._id] || ((matchIndex + 0.5) * totalHeight / matchesInThisRound);
                   const topPosition = centerY - matchHeight / 2;
                   
                   const isFinalMatch = roundNumber === rounds;
@@ -312,90 +434,257 @@ function FixtureDetailContent({ params }: { params: Promise<Params> }) {
                         </div>
                       )}
                       {/* Connecting lines for non-final rounds */}
+                      {console.log('Line check:', { roundNumber, rounds, hasNextMatchId: !!match.nextMatchId, matchNumber: match.matchNumber })}
+                      
+                      {/* Draw lines for all non-final matches */}
                       {roundNumber < rounds && (
                         <>
-                          {/* Horizontal line from match center */}
-                          <div
-                            className="absolute"
-                            style={{
-                              left: `${matchWidth}px`,
-                              top: `${matchHeight / 2}px`,
-                              width: `${roundGap / 2}px`,
-                              height: '2px',
-                              backgroundColor: match.winner ? '#10b981' : '#d1d5db'
-                            }}
-                          />
-                          
-                          {/* Connection dot at match edge */}
-                          <div
-                            className="absolute"
-                            style={{
-                              left: `${matchWidth - 4}px`,
-                              top: `${matchHeight / 2 - 4}px`,
-                              width: '8px',
-                              height: '8px',
-                              borderRadius: '50%',
-                              backgroundColor: match.winner ? '#10b981' : '#6b7280',
-                              zIndex: 10
-                            }}
-                          />
-                          
-                          {/* For pairs of matches, draw vertical connector */}
-                          {matchIndex % 2 === 0 && matchIndex < matchesInThisRound - 1 && (
-                            <>
-                              {/* Vertical line connecting two matches */}
+                          {/* Draw all lines from this match */}
+                          {(() => {
+                            console.log('Inside line drawing function for match', match.matchNumber);
+                            
+                            // Calculate which match in next round this feeds into
+                            const nextRoundMatches = roundMatches[roundNumber + 1] || [];
+                            
+                            // In a knockout tournament, matches feed into the next round based on position
+                            // Match 0,1 -> Match 0 in next round
+                            // Match 2,3 -> Match 1 in next round, etc.
+                            const nextMatchIndex = Math.floor(matchIndex / 2);
+                            const nextMatch = nextRoundMatches[nextMatchIndex];
+                            
+                            if (!nextMatch) {
+                              console.log(`No next match found for match ${match.matchNumber} (looking for index ${nextMatchIndex} in next round)`);
+                              return null;
+                            }
+                            
+                            // Calculate positions
+                            const currentY = centerY;
+                            const nextY = matchPositions[nextMatch._id];
+                            
+                            if (nextY === undefined) {
+                              console.log(`No position found for next match ${nextMatch._id}`);
+                              return null;
+                            }
+                            
+                            // Check if another match connects to the same next match
+                            // In knockout, the sibling is the other match in the pair (odd/even index)
+                            const siblingIndex = matchIndex % 2 === 0 ? matchIndex + 1 : matchIndex - 1;
+                            const siblingMatch = roundMatchList[siblingIndex];
+                            
+                            const elements = [];
+                            
+                            console.log(`Drawing lines for match ${match.matchNumber}:`, {
+                              currentY,
+                              nextY,
+                              matchWidth,
+                              roundGap,
+                              matchHeight,
+                              hasNextMatch: !!nextMatch,
+                              hasSibling: !!siblingMatch
+                            });
+                            
+                            // Always draw horizontal line from current match
+                            elements.push(
                               <div
-                                className="absolute"
+                                key="h-line"
+                                className="absolute transition-colors duration-300"
                                 style={{
-                                  left: `${matchWidth + roundGap / 2}px`,
-                                  top: `${matchHeight / 2}px`,
-                                  width: '2px',
-                                  height: `${verticalSpacing}px`,
-                                  backgroundColor: '#d1d5db'
-                                }}
-                              />
-                              
-                              {/* Horizontal line to next round */}
-                              <div
-                                className="absolute"
-                                style={{
-                                  left: `${matchWidth + roundGap / 2}px`,
-                                  top: `${matchHeight / 2 + verticalSpacing / 2}px`,
+                                  left: `${matchWidth}px`,
+                                  top: `${matchHeight / 2 - 1}px`,
                                   width: `${roundGap / 2}px`,
                                   height: '2px',
-                                  backgroundColor: '#d1d5db'
+                                  backgroundColor: match.winner ? '#10b981' : '#9ca3af',
+                                  zIndex: 1
                                 }}
                               />
-                            </>
-                          )}
-                          
-                          {/* For single advancing matches (like when there's a bye) */}
-                          {matchesInThisRound === 1 && (
-                            <div
-                              className="absolute"
-                              style={{
-                                left: `${matchWidth + roundGap / 2}px`,
-                                top: `${matchHeight / 2}px`,
-                                width: `${roundGap / 2}px`,
-                                height: '2px',
-                                backgroundColor: '#d1d5db'
-                              }}
-                            />
-                          )}
+                            );
+                            
+                            // Add connection dot
+                            elements.push(
+                              <div
+                                key="dot"
+                                className="absolute transition-all duration-300"
+                                style={{
+                                  left: `${matchWidth - 3}px`,
+                                  top: `${matchHeight / 2 - 3}px`,
+                                  width: '6px',
+                                  height: '6px',
+                                  borderRadius: '50%',
+                                  backgroundColor: match.winner ? '#10b981' : '#d1d5db',
+                                  border: match.winner ? '2px solid #ecfdf5' : '2px solid white',
+                                  boxShadow: '0 1px 2px rgba(0, 0, 0, 0.1)',
+                                  zIndex: 15
+                                }}
+                              />
+                            );
+                            
+                            if (siblingMatch) {
+                              // Two matches feeding into one - both draw their vertical lines
+                              const siblingY = matchPositions[siblingMatch._id];
+                              const topY = Math.min(currentY, siblingY);
+                              const bottomY = Math.max(currentY, siblingY);
+                              const midY = (topY + bottomY) / 2;
+                              const isTopMatch = currentY < siblingY;
+                              
+                              console.log(`Drawing vertical line for ${isTopMatch ? 'top' : 'bottom'} match:`, {
+                                matchNumber: match.matchNumber,
+                                currentY,
+                                siblingY,
+                                midY,
+                                topY,
+                                bottomY,
+                                verticalLineHeight: isTopMatch ? midY - currentY : currentY - midY,
+                                matchHeight
+                              });
+                              
+                              // Every match draws its vertical line to the midpoint
+                              if (isTopMatch) {
+                                // Top match: line goes down
+                                elements.push(
+                                  <div
+                                    key="v-line"
+                                    className="absolute transition-colors duration-300"
+                                    style={{
+                                      left: `${matchWidth + roundGap / 2 - 1}px`,
+                                      top: `${matchHeight / 2}px`,
+                                      width: '2px',
+                                      height: `${midY - currentY}px`,
+                                      backgroundColor: match.winner ? '#10b981' : '#9ca3af',
+                                      borderRadius: '0 0 2px 2px',
+                                      zIndex: 1
+                                    }}
+                                  />
+                                );
+                              } else {
+                                // Bottom match: line goes up
+                                elements.push(
+                                  <div
+                                    key="v-line"
+                                    className="absolute transition-colors duration-300"
+                                    style={{
+                                      left: `${matchWidth + roundGap / 2 - 1}px`,
+                                      top: `${midY - currentY + matchHeight / 2}px`,
+                                      width: '2px',
+                                      height: `${currentY - midY}px`,
+                                      backgroundColor: match.winner ? '#10b981' : '#9ca3af',
+                                      borderRadius: '2px 2px 0 0',
+                                      zIndex: 1
+                                    }}
+                                  />
+                                );
+                              }
+                              
+                              // Only the top match draws the horizontal line and junction dot
+                              if (isTopMatch) {
+                                // Horizontal line from junction to next match
+                                elements.push(
+                                  <div
+                                    key="h-line-2"
+                                    className="absolute transition-colors duration-300"
+                                    style={{
+                                      left: `${matchWidth + roundGap / 2}px`,
+                                      top: `${matchHeight / 2 + (midY - currentY) - 1}px`,
+                                      width: `${roundGap / 2}px`,
+                                      height: '2px',
+                                      backgroundColor: (match.winner || siblingMatch.winner) ? '#10b981' : '#9ca3af',
+                                      zIndex: 1
+                                    }}
+                                  />
+                                );
+                                
+                                // Junction dot
+                                elements.push(
+                                  <div
+                                    key="junction-dot"
+                                    className="absolute transition-all duration-300"
+                                    style={{
+                                      left: `${matchWidth + roundGap / 2 - 2}px`,
+                                      top: `${matchHeight / 2 + (midY - currentY) - 2}px`,
+                                      width: '4px',
+                                      height: '4px',
+                                      borderRadius: '50%',
+                                      backgroundColor: (match.winner || siblingMatch.winner) ? '#10b981' : '#d1d5db',
+                                      boxShadow: '0 0 0 2px white, 0 1px 2px rgba(0, 0, 0, 0.1)',
+                                      zIndex: 15
+                                    }}
+                                  />
+                                );
+                              }
+                            } else {
+                              // Single match - check if vertical adjustment needed
+                              const yDiff = nextY - currentY;
+                              
+                              if (Math.abs(yDiff) > 5) {
+                                // Need vertical adjustment
+                                elements.push(
+                                  <div
+                                    key="v-line"
+                                    className="absolute transition-colors duration-300"
+                                    style={{
+                                      left: `${matchWidth + roundGap / 2 - 1}px`,
+                                      top: yDiff > 0 ? `${matchHeight / 2}px` : `${matchHeight / 2 + yDiff}px`,
+                                      width: '2px',
+                                      height: `${Math.abs(yDiff)}px`,
+                                      backgroundColor: match.winner ? '#10b981' : '#9ca3af',
+                                      borderRadius: yDiff > 0 ? '0 0 2px 2px' : '2px 2px 0 0',
+                                      zIndex: 1
+                                    }}
+                                  />
+                                );
+                                
+                                // Extended horizontal line at destination height
+                                elements.push(
+                                  <div
+                                    key="h-line-end"
+                                    className="absolute transition-colors duration-300"
+                                    style={{
+                                      left: `${matchWidth + roundGap / 2}px`,
+                                      top: `${matchHeight / 2 + yDiff - 1}px`,
+                                      width: `${roundGap / 2}px`,
+                                      height: '2px',
+                                      backgroundColor: match.winner ? '#10b981' : '#9ca3af',
+                                      zIndex: 1
+                                    }}
+                                  />
+                                );
+                                
+                                // Add corner dot for L-shaped connection
+                                elements.push(
+                                  <div
+                                    key="corner-dot"
+                                    className="absolute transition-all duration-300"
+                                    style={{
+                                      left: `${matchWidth + roundGap / 2 - 2}px`,
+                                      top: `${matchHeight / 2 + yDiff - 2}px`,
+                                      width: '4px',
+                                      height: '4px',
+                                      borderRadius: '50%',
+                                      backgroundColor: match.winner ? '#10b981' : '#d1d5db',
+                                      boxShadow: '0 0 0 2px white, 0 1px 2px rgba(0, 0, 0, 0.1)',
+                                      zIndex: 15
+                                    }}
+                                  />
+                                );
+                              }
+                            }
+                            
+                            console.log(`Returning ${elements.length} elements for match ${match.matchNumber}`);
+                            return <>{elements}</>;
+                          })()}
                         </>
                       )}
                       {/* Match card */}
                       <div
                         onClick={() => handleMatchClick(match)}
-                        className={`relative bg-white border-2 rounded-lg p-3 shadow-sm transition-all ${
+                        className={`relative bg-white border rounded-lg p-3 shadow-md transition-all ${
                           canManageFixtures && match.status !== 'walkover' 
-                            ? 'cursor-pointer hover:shadow-lg hover:border-indigo-300' 
+                            ? 'cursor-pointer hover:shadow-xl hover:border-indigo-400 hover:scale-[1.02]' 
                             : ''
                         } ${
-                          isChampion ? 'border-yellow-400 bg-yellow-50 shadow-lg' :
-                          match.status === 'completed' ? 'border-green-200' : 'border-gray-200'
+                          isChampion ? 'border-2 border-yellow-400 bg-gradient-to-br from-yellow-50 to-white shadow-xl' :
+                          match.status === 'completed' ? 'border-green-300 bg-gradient-to-br from-green-50 to-white' : 'border-gray-300'
                         }`}
-                        style={{ height: `${matchHeight}px`, zIndex: 5 }}
+                        style={{ height: `${matchHeight}px`, zIndex: 20 }}
                       >
                         <div className="flex justify-between items-center mb-2">
                           <span className="text-xs font-medium text-gray-600">Match {match.matchNumber}</span>
@@ -414,7 +703,7 @@ function FixtureDetailContent({ params }: { params: Promise<Params> }) {
                               <span className="text-sm font-medium text-gray-900" title={match.homeParticipant?.name || match.homeParticipant?.displayName || 'TBD'}>
                                 {match.homeParticipant?.name || match.homeParticipant?.displayName || 'TBD'}
                               </span>
-                              {fixture.participantType === 'player' && getPlayerTeamName(match.homeParticipant) && (
+                              {fixture?.participantType === 'player' && getPlayerTeamName(match.homeParticipant) && (
                                 <span className="text-xs text-gray-500 italic">{getPlayerTeamName(match.homeParticipant)}</span>
                               )}
                             </div>
@@ -434,7 +723,7 @@ function FixtureDetailContent({ params }: { params: Promise<Params> }) {
                               <span className="text-sm font-medium text-gray-900" title={match.awayParticipant?.name || match.awayParticipant?.displayName || 'TBD'}>
                                 {match.awayParticipant?.name || match.awayParticipant?.displayName || 'TBD'}
                               </span>
-                              {fixture.participantType === 'player' && getPlayerTeamName(match.awayParticipant) && (
+                              {fixture?.participantType === 'player' && getPlayerTeamName(match.awayParticipant) && (
                                 <span className="text-xs text-gray-500 italic">{getPlayerTeamName(match.awayParticipant)}</span>
                               )}
                             </div>
