@@ -1,0 +1,200 @@
+/* Tournament Bracket Print Styles */
+@media print {
+  /* Page setup */
+  @page {
+    size: A4 landscape;
+    margin: 10mm;
+  }
+  
+  /* Force exact colors */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    color-adjust: exact !important;
+  }
+  
+  /* Global resets for print */
+  body {
+    background: white !important;
+    color: black !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+  
+  /* Hide screen-only elements */
+  .print-hide,
+  header,
+  nav,
+  button,
+  .fixed,
+  .absolute.top-0.right-0.text-xs {
+    display: none !important;
+  }
+  
+  /* Show print-only elements */
+  .print-header {
+    display: block !important;
+    margin-bottom: 20px !important;
+    text-align: center !important;
+    page-break-after: avoid !important;
+  }
+  
+  .print-header h1 {
+    font-size: 24px !important;
+    font-weight: bold !important;
+    margin-bottom: 8px !important;
+    color: black !important;
+  }
+  
+  .print-header p {
+    font-size: 16px !important;
+    margin-bottom: 4px !important;
+    color: black !important;
+  }
+  
+  /* Layout adjustments */
+  .min-h-screen {
+    min-height: auto !important;
+  }
+  
+  .max-w-7xl {
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+  
+  /* Remove all padding/margins */
+  .px-4, .py-6, .sm\:px-6, .lg\:px-8, .sm\:px-0 {
+    padding: 0 !important;
+  }
+  
+  /* Remove decorative styles */
+  .shadow, .shadow-md, .shadow-lg, .shadow-xl,
+  .rounded, .rounded-md, .rounded-lg, .rounded-xl {
+    box-shadow: none !important;
+    border-radius: 0 !important;
+  }
+  
+  /* Tournament bracket specific */
+  #knockout-bracket {
+    overflow: visible !important;
+    background: white !important;
+    padding: 0 !important;
+    width: 100% !important;
+    transform: scale(0.9);
+    transform-origin: top left;
+    page-break-inside: auto !important;
+  }
+  
+  .print-bracket-container {
+    position: relative !important;
+    background: white !important;
+    width: 100% !important;
+  }
+  
+  /* Round columns */
+  #knockout-bracket .absolute[style*="left"] {
+    page-break-inside: avoid !important;
+  }
+  
+  /* Round headers */
+  #knockout-bracket h3 {
+    color: black !important;
+    font-weight: bold !important;
+    font-size: 14px !important;
+    page-break-after: avoid !important;
+    margin-bottom: 10px !important;
+  }
+  
+  /* Match cards */
+  #knockout-bracket .bg-white {
+    background: white !important;
+    border: 1px solid black !important;
+    box-shadow: none !important;
+    page-break-inside: avoid !important;
+  }
+  
+  /* Text sizes */
+  #knockout-bracket .text-sm {
+    font-size: 12px !important;
+  }
+  
+  #knockout-bracket .text-xs {
+    font-size: 10px !important;
+  }
+  
+  /* Force all text to black */
+  #knockout-bracket span,
+  #knockout-bracket div {
+    color: black !important;
+  }
+  
+  /* Winner highlighting */
+  #knockout-bracket .bg-green-100 {
+    background-color: #e0e0e0 !important;
+    border: 2px solid black !important;
+  }
+  
+  /* Champion card */
+  #knockout-bracket .border-yellow-400 {
+    border: 3px solid black !important;
+    background-color: #f0f0f0 !important;
+  }
+  
+  /* Status badges */
+  #knockout-bracket .bg-blue-100,
+  #knockout-bracket .bg-yellow-100,
+  #knockout-bracket .bg-green-100,
+  #knockout-bracket .bg-red-100,
+  #knockout-bracket .bg-gray-100,
+  #knockout-bracket .bg-purple-100 {
+    background-color: #e0e0e0 !important;
+    color: black !important;
+    border: 1px solid black !important;
+  }
+  
+  /* Connection lines */
+  #knockout-bracket div[style*="backgroundColor"] {
+    print-color-adjust: exact !important;
+    -webkit-print-color-adjust: exact !important;
+  }
+  
+  /* Winner path lines */
+  #knockout-bracket div[style*="rgb(16, 185, 129)"] {
+    background-color: black !important;
+  }
+  
+  /* Regular lines */
+  #knockout-bracket div[style*="rgb(156, 163, 175)"] {
+    background-color: #666 !important;
+  }
+  
+  /* Connection dots */
+  #knockout-bracket div[style*="borderRadius: '50%'"] {
+    background-color: black !important;
+    border: 1px solid white !important;
+  }
+  
+  /* Hide legend */
+  .flex.items-center.space-x-3.text-sm {
+    display: none !important;
+  }
+  
+  /* Responsive scaling for larger tournaments */
+  @media (min-width: 1200px) {
+    #knockout-bracket {
+      transform: scale(0.75) !important;
+    }
+  }
+  
+  @media (min-width: 1600px) {
+    #knockout-bracket {
+      transform: scale(0.65) !important;
+    }
+  }
+  
+  /* Page break control */
+  .absolute[style*="top"] {
+    page-break-inside: avoid !important;
+  }
+}
