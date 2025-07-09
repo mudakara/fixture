@@ -50,10 +50,11 @@ interface Props {
   getPlayerTeamName: (participant: any) => string | null;
 }
 
-function DraggableParticipant({ participant, matchId, position }: { 
+function DraggableParticipant({ participant, matchId, position, teamName }: { 
   participant: any; 
   matchId: string; 
   position: 'home' | 'away';
+  teamName: string | null;
 }) {
   const id = `${matchId}-${position}`;
   const {
@@ -79,7 +80,7 @@ function DraggableParticipant({ participant, matchId, position }: {
         style={style}
         {...attributes}
         {...listeners}
-        className="flex items-center justify-center h-8 px-2 py-1 bg-gray-100 border-2 border-dashed border-gray-300 rounded text-sm text-gray-500"
+        className="flex items-center justify-center h-10 px-2 py-1 bg-gray-100 border-2 border-dashed border-gray-300 rounded text-sm text-gray-500"
       >
         Drop player here
       </div>
@@ -92,11 +93,16 @@ function DraggableParticipant({ participant, matchId, position }: {
       style={style}
       {...attributes}
       {...listeners}
-      className="flex items-center px-2 py-1 bg-white border border-gray-300 rounded hover:bg-gray-50 active:cursor-grabbing"
+      className="flex flex-col justify-center px-2 py-1 bg-white border border-gray-300 rounded hover:bg-gray-50 active:cursor-grabbing min-h-[2.5rem]"
     >
       <span className="text-sm font-medium text-gray-900">
         {participant.name || participant.displayName}
       </span>
+      {teamName && (
+        <span className="text-xs text-gray-500">
+          {teamName}
+        </span>
+      )}
     </div>
   );
 }
@@ -221,7 +227,7 @@ export default function EditableKnockoutBracket({
     roundMatches[i] = localMatches.filter(m => m.round === i).sort((a, b) => a.matchNumber - b.matchNumber);
   }
 
-  const matchHeight = 125;
+  const matchHeight = 140;
   const matchWidth = 300;
   const roundGap = 120;
   const matchVerticalGap = 30;
@@ -329,6 +335,7 @@ export default function EditableKnockoutBracket({
                               participant={match.homeParticipant}
                               matchId={match._id}
                               position="home"
+                              teamName={match.homeParticipant ? getPlayerTeamName(match.homeParticipant) : null}
                             />
                             
                             <div className="text-center text-xs text-gray-500">vs</div>
@@ -338,6 +345,7 @@ export default function EditableKnockoutBracket({
                               participant={match.awayParticipant}
                               matchId={match._id}
                               position="away"
+                              teamName={match.awayParticipant ? getPlayerTeamName(match.awayParticipant) : null}
                             />
                           </div>
                         </div>
@@ -353,10 +361,17 @@ export default function EditableKnockoutBracket({
       
       <DragOverlay>
         {activeId && activeData ? (
-          <div className="bg-white border-2 border-indigo-500 rounded px-3 py-1 shadow-lg">
-            <span className="text-sm font-medium">
-              {activeData.participant?.name || activeData.participant?.displayName || 'Empty'}
-            </span>
+          <div className="bg-white border-2 border-indigo-500 rounded px-3 py-2 shadow-lg">
+            <div className="flex flex-col">
+              <span className="text-sm font-medium">
+                {activeData.participant?.name || activeData.participant?.displayName || 'Empty'}
+              </span>
+              {activeData.participant && getPlayerTeamName(activeData.participant) && (
+                <span className="text-xs text-gray-500">
+                  {getPlayerTeamName(activeData.participant)}
+                </span>
+              )}
+            </div>
           </div>
         ) : null}
       </DragOverlay>
