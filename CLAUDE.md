@@ -407,6 +407,8 @@ npm run dev         # Start both frontend (port 3500) and backend (port 3501)
   - Body: includes format, participants, settings
 - `GET /api/fixtures/:id` - Get fixture with matches and participants
 - `PUT /api/fixtures/:fixtureId/matches/:matchId` - Update match result
+- `PUT /api/fixtures/:fixtureId/matches/:matchId/participants` - Update match participants (Super Admin only)
+  - Body: `{ homeParticipant: ObjectId, awayParticipant: ObjectId }`
 - `GET /api/fixtures/:id/standings` - Get standings for round-robin
 - `DELETE /api/fixtures/:id` - Soft delete fixture
 
@@ -485,7 +487,31 @@ Required API Permissions:
 
 ## Recent Updates
 
-### v0.9 Updates (Latest)
+### v0.10 Updates (Latest)
+- **Drag-and-Drop Fixture Editing for Super Admins**:
+  - Added "Edit Fixture" button for super admins on player knockout tournaments
+  - Implemented drag-and-drop functionality using @dnd-kit library
+  - Features:
+    - Visual edit mode with orange border and "Editable" badges
+    - Drag players between match positions to rearrange brackets
+    - Empty slots show "Drop player here" placeholder
+    - Real-time database updates on drop
+    - Automatic clearing of scores/winner when participants change
+  - Technical implementation:
+    - Created `EditableKnockoutBracket` component with DndContext
+    - Uses @dnd-kit/core, @dnd-kit/sortable, and @dnd-kit/utilities
+    - Dynamic import with Next.js to avoid SSR issues
+    - New API endpoint: `PUT /api/fixtures/:fixtureId/matches/:matchId/participants`
+  - Security:
+    - Only super admins can access edit mode
+    - Role validation in both frontend and backend
+    - AuditLog tracks all participant changes
+  - Bug fixes:
+    - Fixed AuditLog validation error (entity vs resource, entityId vs resourceId)
+    - Corrected user ID reference (user._id vs user.userId)
+    - Fixed TypeScript null vs undefined issues
+
+### v0.9 Updates
 - **Bye Match Label Fix for Odd Number of Participants**:
   - Fixed issue where bye matches in round 2 showed "scheduled" instead of "Bye"
   - Added detection logic for bye matches: `(match.homeParticipant && !match.awayParticipant) || (!match.homeParticipant && match.awayParticipant)`

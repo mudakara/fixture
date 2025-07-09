@@ -1127,10 +1127,10 @@ router.put('/:fixtureId/matches/:matchId/participants', authenticate, async (req
 
     // Create audit log
     await AuditLog.create({
-      userId: user.userId,
+      userId: user._id,
       action: 'update',
-      resource: 'match',
-      resourceId: matchId,
+      entity: 'match',
+      entityId: matchId,
       details: {
         field: 'participants',
         fixtureId,
