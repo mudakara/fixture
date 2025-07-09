@@ -1071,10 +1071,11 @@ router.put('/:fixtureId/matches/:matchId', authenticate, canManageFixtures, asyn
 
 // Update match participants (for drag and drop editing)
 router.put('/:fixtureId/matches/:matchId/participants', authenticate, async (req: Request, res: Response): Promise<void> => {
+  const { fixtureId, matchId } = req.params;
+  const { homeParticipant, awayParticipant } = req.body;
+  const user = (req as any).user;
+  
   try {
-    const { fixtureId, matchId } = req.params;
-    const { homeParticipant, awayParticipant } = req.body;
-    const user = (req as any).user;
 
     // Check if user is super admin
     if (user?.role !== 'super_admin') {
@@ -1089,12 +1090,22 @@ router.put('/:fixtureId/matches/:matchId/participants', authenticate, async (req
       return;
     }
 
+    // Log the request for debugging
+    logger.info('Updating match participants:', {
+      matchId,
+      fixtureId,
+      homeParticipant,
+      awayParticipant,
+      hasHomeParam: homeParticipant !== undefined,
+      hasAwayParam: awayParticipant !== undefined
+    });
+
     // Update participants
     if (homeParticipant !== undefined) {
-      match.homeParticipant = homeParticipant;
+      match.homeParticipant = homeParticipant || null;
     }
     if (awayParticipant !== undefined) {
-      match.awayParticipant = awayParticipant;
+      match.awayParticipant = awayParticipant || null;
     }
 
     // Clear scores and winner if participants changed
@@ -1104,6 +1115,12 @@ router.put('/:fixtureId/matches/:matchId/participants', authenticate, async (req
       match.winner = undefined;
       match.loser = undefined;
       match.status = 'scheduled';
+      
+      // Also clear partner fields if they exist
+      match.homePartner = undefined;
+      match.awayPartner = undefined;
+      match.winnerPartner = undefined;
+      match.loserPartner = undefined;
     }
 
     await match.save();
@@ -1129,8 +1146,17 @@ router.put('/:fixtureId/matches/:matchId/participants', authenticate, async (req
 
     res.json({ success: true, match: updatedMatch });
   } catch (error: any) {
-    logger.error('Error updating match participants:', error);
-    res.status(500).json({ error: 'Failed to update match participants' });
+    logger.error('Error updating match participants:', {
+      error: error.message,
+      stack: error.stack,
+      matchId,
+      fixtureId,
+      body: req.body
+    });
+    res.status(500).json({ 
+      error: 'Failed to update match participants',
+      details: error.message 
+    });
   }
 });
 
