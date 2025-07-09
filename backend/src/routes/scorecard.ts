@@ -3,6 +3,7 @@ import { authenticate } from '../middleware/auth';
 import Fixture from '../models/Fixture';
 import Match from '../models/Match';
 import Team from '../models/Team';
+import User from '../models/User';
 import logger from '../utils/logger';
 
 const router = express.Router();
@@ -12,9 +13,8 @@ router.get('/scorecard/teams', authenticate, async (req: Request, res: Response)
   try {
     const { eventId } = req.query;
     
-    // Build query for fixtures
+    // Build query for fixtures - include both team and player fixtures
     let fixtureQuery: any = {
-      participantType: 'team',
       status: 'completed',
       isActive: true
     };
@@ -23,21 +23,24 @@ router.get('/scorecard/teams', authenticate, async (req: Request, res: Response)
       fixtureQuery.eventId = eventId;
     }
     
-    // First, let's check all team fixtures regardless of status for debugging
-    const allTeamFixtures = await Fixture.find({
-      participantType: 'team',
+    // First, let's check all fixtures regardless of status for debugging
+    const allFixtures = await Fixture.find({
       isActive: true,
       ...(eventId && eventId !== 'all' ? { eventId } : {})
-    }).select('name status').lean();
+    }).select('name status participantType').lean();
     
-    logger.info(`Total team fixtures: ${allTeamFixtures.length}`, {
-      byStatus: allTeamFixtures.reduce((acc, f) => {
+    logger.info(`Total fixtures: ${allFixtures.length}`, {
+      byStatus: allFixtures.reduce((acc, f) => {
         acc[f.status] = (acc[f.status] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>),
+      byType: allFixtures.reduce((acc, f) => {
+        acc[f.participantType] = (acc[f.participantType] || 0) + 1;
         return acc;
       }, {} as Record<string, number>)
     });
     
-    // Get all completed team fixtures
+    // Get all completed fixtures (both team and player)
     const fixtures = await Fixture.find(fixtureQuery)
       .populate({
         path: 'sportGameId',
@@ -84,7 +87,7 @@ router.get('/scorecard/teams', authenticate, async (req: Request, res: Response)
       if (matches.length === 0) continue;
       
       // Determine tournament rankings
-      let rankings: { teamId: string; position: 1 | 2 | 3 }[] = [];
+      let rankings: { participantId: string; position: 1 | 2 | 3 }[] = [];
       
       if (fixture.format === 'knockout') {
         // For knockout tournaments
@@ -99,7 +102,7 @@ router.get('/scorecard/teams', authenticate, async (req: Request, res: Response)
         if (finalMatch && finalMatch.winner) {
           // 1st place - winner of final
           rankings.push({
-            teamId: finalMatch.winner.toString(),
+            participantId: finalMatch.winner.toString(),
             position: 1
           });
           
@@ -110,7 +113,7 @@ router.get('/scorecard/teams', authenticate, async (req: Request, res: Response)
             
           if (runnerUp) {
             rankings.push({
-              teamId: runnerUp,
+              participantId: runnerUp,
               position: 2
             });
           }
@@ -119,7 +122,7 @@ router.get('/scorecard/teams', authenticate, async (req: Request, res: Response)
           const thirdPlaceMatch = matches.find(m => m.isThirdPlaceMatch);
           if (thirdPlaceMatch && thirdPlaceMatch.winner) {
             rankings.push({
-              teamId: thirdPlaceMatch.winner.toString(),
+              participantId: thirdPlaceMatch.winner.toString(),
               position: 3
             });
           } else if (semiFinalMatches.length >= 2) {
@@ -132,7 +135,7 @@ router.get('/scorecard/teams', authenticate, async (req: Request, res: Response)
                   
                 if (loser && loser !== finalMatch.winner.toString() && loser !== runnerUp) {
                   rankings.push({
-                    teamId: loser,
+                    participantId: loser,
                     position: 3
                   });
                   break; // Only award to one team
@@ -175,27 +178,60 @@ router.get('/scorecard/teams', authenticate, async (req: Request, res: Response)
           });
         
         // Assign rankings
-        if (sortedTeams[0]) rankings.push({ teamId: sortedTeams[0][0], position: 1 });
-        if (sortedTeams[1]) rankings.push({ teamId: sortedTeams[1][0], position: 2 });
-        if (sortedTeams[2]) rankings.push({ teamId: sortedTeams[2][0], position: 3 });
+        if (sortedTeams[0]) rankings.push({ participantId: sortedTeams[0][0], position: 1 });
+        if (sortedTeams[1]) rankings.push({ participantId: sortedTeams[1][0], position: 2 });
+        if (sortedTeams[2]) rankings.push({ participantId: sortedTeams[2][0], position: 3 });
       }
       
       // Award points based on rankings
-      logger.info(`Fixture ${fixture.name}: Found ${rankings.length} rankings`);
+      logger.info(`Fixture ${fixture.name}: Found ${rankings.length} rankings, participantType: ${fixture.participantType}`);
       
       for (const ranking of rankings) {
         const points = ranking.position === 1 ? sportGame.points.first :
                       ranking.position === 2 ? sportGame.points.second :
                       sportGame.points.third;
         
-        logger.info(`Awarding ${points} points for position ${ranking.position} to team ${ranking.teamId}`);
+        logger.info(`Awarding ${points} points for position ${ranking.position} to participant ${ranking.participantId}`);
         
         if (points > 0) {
-          // Get team details
-          const team = await Team.findById(ranking.teamId).lean();
-          if (!team) {
-            logger.warn(`Team ${ranking.teamId} not found`);
-            continue;
+          let team: any;
+          let winnerName: string = '';
+          
+          // Check if this is a team or player fixture
+          if (fixture.participantType === 'team') {
+            // For team fixtures, the participant is already a team
+            team = await Team.findById(ranking.participantId).lean();
+            if (!team) {
+              logger.warn(`Team ${ranking.participantId} not found`);
+              continue;
+            }
+          } else if (fixture.participantType === 'player') {
+            // For player fixtures, find the player's team for this event
+            const player = await User.findById(ranking.participantId).lean();
+            if (!player) {
+              logger.warn(`Player ${ranking.participantId} not found`);
+              continue;
+            }
+            
+            winnerName = player.displayName || player.name;
+            
+            // Find player's team membership for this event
+            const membership = player.teamMemberships.find(tm => 
+              tm.eventId.toString() === event._id.toString()
+            );
+            
+            if (!membership) {
+              logger.warn(`Player ${player.name} has no team for event ${event.name}`);
+              continue;
+            }
+            
+            team = await Team.findById(membership.teamId).lean();
+            if (!team) {
+              logger.warn(`Team ${membership.teamId} not found for player ${player.name}`);
+              continue;
+            }
+            
+            logger.info(`Player ${player.name} from team ${team.name} won position ${ranking.position}`);
           }
           
           const key = `${team._id}_${event._id}`;
@@ -216,7 +252,7 @@ router.get('/scorecard/teams', authenticate, async (req: Request, res: Response)
           teamData.totalPoints += points;
           teamData.breakdown.push({
             activityId: sportGame._id.toString(),
-            activityName: sportGame.title,
+            activityName: sportGame.title + (winnerName ? ` (${winnerName})` : ''),
             position: ranking.position,
             points
           });
@@ -233,7 +269,7 @@ router.get('/scorecard/teams', authenticate, async (req: Request, res: Response)
       debug: {
         fixtureCount: fixtures.length,
         teamsProcessed: teamPointsMap.size,
-        allFixtureStatuses: allTeamFixtures.reduce((acc, f) => {
+        allFixtureStatuses: allFixtures.reduce((acc, f) => {
           acc[f.status] = (acc[f.status] || 0) + 1;
           return acc;
         }, {} as Record<string, number>)
