@@ -22,15 +22,18 @@ body {
 
 /* Print Styles for Tournament Bracket */
 @media print {
-  /* Hide non-essential elements */
-  .print-hide {
-    display: none !important;
-  }
-  
   /* Page setup for A4 landscape */
   @page {
     size: A4 landscape;
-    margin: 15mm;
+    margin: 10mm;
+  }
+  
+  /* Hide non-essential elements */
+  .print-hide,
+  header,
+  nav,
+  button {
+    display: none !important;
   }
   
   /* Ensure colors are printed */
@@ -127,8 +130,11 @@ body {
   #knockout-bracket {
     width: 100%;
     max-width: 100%;
-    /* For very large brackets, allow horizontal scrolling to be printed across pages */
-    overflow-x: visible !important;
+    overflow: visible !important;
+    background: white !important;
+    padding: 10px !important;
+    transform: scale(0.8);
+    transform-origin: top left;
   }
   
   /* Tournament bracket container */
@@ -157,14 +163,49 @@ body {
     page-break-inside: avoid !important;
   }
   
+  /* Print-specific match card styles */
+  .print-match {
+    background: white !important;
+    border: 1px solid #000 !important;
+    page-break-inside: avoid !important;
+  }
+  
+  .print-winner {
+    background: #f0f0f0 !important;
+    border: 2px solid #000 !important;
+  }
+  
+  .print-champion {
+    background: #e0e0e0 !important;
+    border: 3px solid #000 !important;
+  }
+  
+  /* Connection lines */
+  .print-line {
+    print-color-adjust: exact !important;
+    -webkit-print-color-adjust: exact !important;
+  }
+  
   /* Tournament title */
   .print-header {
+    display: block !important;
     margin-bottom: 20px;
+    text-align: center;
+    padding-bottom: 10px;
+    border-bottom: 2px solid #000;
   }
   
   .print-header h1 {
     page-break-after: avoid;
     margin-bottom: 10px;
+    font-size: 24px !important;
+    color: #000 !important;
+  }
+  
+  .print-header p {
+    font-size: 14px !important;
+    color: #000 !important;
+    margin: 5px 0 !important;
   }
   
   /* Ensure proper spacing for multi-page brackets */
@@ -179,12 +220,7 @@ body {
   
   /* A4 Landscape specific adjustments */
   /* A4 landscape is 297mm x 210mm (minus margins) */
-  @media (max-width: 297mm) {
-    #knockout-bracket > div {
-      transform: scale(0.85) !important;
-      transform-origin: top left !important;
-    }
-  }
+  /* Remove this as we already have transform on #knockout-bracket */
   
   /* For very large tournaments (32+ teams) */
   @media (min-width: 297mm) {

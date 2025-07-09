@@ -622,15 +622,8 @@ function FixtureDetailContent({ params }: { params: Promise<Params> }) {
 
     return (
       <div 
-        className="overflow-x-auto pb-8 bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl p-6" 
+        className="overflow-x-auto pb-8 bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl p-6 print-bracket" 
         id="knockout-bracket"
-        style={{
-          '@media print': {
-            overflow: 'visible',
-            background: 'white',
-            padding: 0
-          }
-        } as any}
       >
         <div className="relative print-bracket-container" style={{ minHeight: `${totalHeight + 100}px` }}>
           {Object.entries(roundMatches).map(([round, roundMatchList], roundIndex) => {
@@ -718,7 +711,7 @@ function FixtureDetailContent({ params }: { params: Promise<Params> }) {
                             elements.push(
                               <div
                                 key="h-line"
-                                className="absolute transition-colors duration-300"
+                                className="absolute transition-colors duration-300 print-line"
                                 style={{
                                   left: `${matchWidth}px`,
                                   top: `${matchHeight / 2 - 1}px`,
@@ -907,13 +900,13 @@ function FixtureDetailContent({ params }: { params: Promise<Params> }) {
                       {/* Match card */}
                       <div
                         onClick={() => handleMatchClick(match)}
-                        className={`relative bg-white border rounded-lg p-3 shadow-md transition-all ${
+                        className={`relative bg-white border rounded-lg p-3 shadow-md transition-all print-match ${
                           canManageFixtures && match.status !== 'walkover' 
                             ? 'cursor-pointer hover:shadow-xl hover:border-indigo-400 hover:scale-[1.02]' 
                             : ''
                         } ${
-                          isChampion ? 'border-2 border-yellow-400 bg-gradient-to-br from-yellow-50 to-white shadow-xl' :
-                          match.status === 'completed' ? 'border-green-300 bg-gradient-to-br from-green-50 to-white' : 'border-gray-300'
+                          isChampion ? 'border-2 border-yellow-400 bg-gradient-to-br from-yellow-50 to-white shadow-xl print-champion' :
+                          match.status === 'completed' ? 'border-green-300 bg-gradient-to-br from-green-50 to-white print-winner' : 'border-gray-300'
                         }`}
                         style={{ height: `${matchHeight}px`, zIndex: 20 }}
                       >
@@ -1095,119 +1088,10 @@ function FixtureDetailContent({ params }: { params: Promise<Params> }) {
 
   return (
     <div className="min-h-screen bg-gray-100">
-      <style jsx global>{`
-        @media print {
-          @page {
-            size: A4 landscape;
-            margin: 10mm;
-          }
-          
-          /* Force white background and black text */
-          * {
-            background: white !important;
-            color: black !important;
-            -webkit-print-color-adjust: exact !important;
-            print-color-adjust: exact !important;
-          }
-          
-          /* Hide all elements with print-hide class */
-          .print-hide {
-            display: none !important;
-          }
-          
-          /* Show print header */
-          .print-header {
-            display: block !important;
-            margin-bottom: 20px !important;
-            page-break-after: avoid !important;
-          }
-          
-          /* Main container adjustments */
-          body {
-            margin: 0 !important;
-            padding: 0 !important;
-          }
-          
-          .max-w-7xl {
-            max-width: 100% !important;
-            margin: 0 !important;
-            padding: 0 !important;
-          }
-          
-          /* Bracket specific styling */
-          #knockout-bracket {
-            overflow: visible !important;
-            background: white !important;
-            padding: 10px !important;
-            width: 100% !important;
-            transform: scale(0.85);
-            transform-origin: top left;
-            page-break-inside: auto !important;
-          }
-          
-          /* Tournament bracket container */
-          #knockout-bracket > div {
-            background: white !important;
-          }
-          
-          /* Match cards - ensure they're visible */
-          #knockout-bracket .bg-white {
-            border: 1px solid #000 !important;
-            box-shadow: none !important;
-            page-break-inside: avoid !important;
-            background: white !important;
-          }
-          
-          /* Winner highlighting */
-          #knockout-bracket .bg-green-100 {
-            background-color: #e0e0e0 !important;
-            border: 2px solid #000 !important;
-          }
-          
-          /* Champion card */
-          #knockout-bracket .border-yellow-400 {
-            border: 3px solid #000 !important;
-            background: #f0f0f0 !important;
-          }
-          
-          /* Connection lines */
-          #knockout-bracket div[style*="background-color: rgb(16, 185, 129)"] {
-            background-color: #000 !important;
-          }
-          
-          #knockout-bracket div[style*="background-color: rgb(156, 163, 175)"] {
-            background-color: #666 !important;
-          }
-          
-          /* Hide interactive elements */
-          button {
-            display: none !important;
-          }
-          
-          /* Round headers */
-          h3 {
-            color: #000 !important;
-            font-weight: bold !important;
-            page-break-after: avoid !important;
-          }
-          
-          /* Ensure text is readable */
-          .text-gray-900, .text-gray-800, .text-gray-700, .text-gray-600, .text-gray-500 {
-            color: #000 !important;
-          }
-          
-          /* For very large tournaments */
-          @media (min-width: 250mm) {
-            #knockout-bracket {
-              transform: scale(0.7) !important;
-            }
-          }
-        }
-      `}</style>
       <div className="print-hide">
         <Header />
       </div>
-      <div className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8 print:py-0">
+      <div className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
         <div className="px-4 py-6 sm:px-0">
           {/* Header */}
           <div className="mb-6 print-hide">
