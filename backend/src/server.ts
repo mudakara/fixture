@@ -32,6 +32,7 @@ import dashboardRoutes from './routes/dashboard';
 import sportGamesRoutes from './routes/sportgames';
 import fixtureRoutes from './routes/fixtures';
 import scorecardRoutes from './routes/scorecard';
+import playersRoutes from './routes/players';
 import { PermissionService } from './services/permissionService';
 
 const app = express();
@@ -96,6 +97,7 @@ app.use('/api', dashboardRoutes);
 app.use('/api', sportGamesRoutes);
 app.use('/api/fixtures', fixtureRoutes);
 app.use('/api', scorecardRoutes);
+app.use('/api', playersRoutes);
 
 app.get('/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });

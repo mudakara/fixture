@@ -405,14 +405,33 @@ const generateKnockoutBracket = async (
     if (match.status === 'walkover' && match.winner && match.nextMatchId) {
       const nextMatch = await Match.findById(match.nextMatchId);
       if (nextMatch) {
+        logger.info(`Advancing walkover winner from match ${match._id} to next match ${nextMatch._id}`, {
+          winner: match.winner,
+          previousMatchIds: nextMatch.previousMatchIds
+        });
+        
         // Determine if this match feeds into home or away position
-        const previousMatchIndex = nextMatch.previousMatchIds?.indexOf(match._id);
+        const previousMatchIndex = nextMatch.previousMatchIds?.findIndex(
+          id => id && (id.toString() === match._id.toString())
+        );
+        
         if (previousMatchIndex === 0) {
           nextMatch.homeParticipant = match.winner;
+          logger.info(`Placed walkover winner in HOME position`);
         } else if (previousMatchIndex === 1) {
           nextMatch.awayParticipant = match.winner;
+          logger.info(`Placed walkover winner in AWAY position`);
+        } else {
+          // Fallback: place in first available position
+          logger.warn(`Could not determine position from previousMatchIds, using fallback`);
+          if (!nextMatch.homeParticipant) {
+            nextMatch.homeParticipant = match.winner;
+          } else if (!nextMatch.awayParticipant) {
+            nextMatch.awayParticipant = match.winner;
+          }
         }
         await nextMatch.save();
+        logger.info(`Successfully advanced walkover winner to next match`);
       }
     }
   }
@@ -1054,11 +1073,25 @@ router.put('/:fixtureId/matches/:matchId', authenticate, canManageFixtures, asyn
     if (notes) match.notes = notes;
     if (scoreDetails) match.scoreDetails = scoreDetails;
 
-    // Determine winner if match is completed
-    if (status === 'completed') {
-      // Use the model's determineWinner method which handles partners
-      match.determineWinner();
+    // Determine winner if match is completed or walkover
+    if (status === 'completed' || status === 'walkover') {
       match.actualDate = new Date();
+      
+      // For walkover matches, set the participant as the winner
+      if (status === 'walkover') {
+        if (match.homeParticipant && !match.awayParticipant) {
+          match.winner = match.homeParticipant;
+          match.homeScore = 1;
+          match.awayScore = 0;
+        } else if (!match.homeParticipant && match.awayParticipant) {
+          match.winner = match.awayParticipant;
+          match.homeScore = 0;
+          match.awayScore = 1;
+        }
+      } else {
+        // Use the model's determineWinner method which handles partners
+        match.determineWinner();
+      }
       
       // Allow manual winner override for admins/super admins with sets
       if (winnerId && (user.role === 'super_admin' || user.role === 'admin')) {
@@ -1078,25 +1111,56 @@ router.put('/:fixtureId/matches/:matchId', authenticate, canManageFixtures, asyn
         }
       }
       
-      // If knockout, update next match
+      // If knockout, update next match (for both completed and walkover)
       if (match.winner && match.nextMatchId) {
         const nextMatch = await Match.findById(match.nextMatchId);
         if (nextMatch) {
-          // Determine if winner goes to home or away position
-          if (!nextMatch.homeParticipant) {
+          logger.info(`Advancing winner from match ${matchId} to next match ${match.nextMatchId}`, {
+            winner: match.winner,
+            currentHomeParticipant: nextMatch.homeParticipant,
+            currentAwayParticipant: nextMatch.awayParticipant,
+            previousMatchIds: nextMatch.previousMatchIds
+          });
+          
+          // Check previousMatchIds to determine position
+          const previousMatchIndex = nextMatch.previousMatchIds?.findIndex(
+            id => id && (id.toString() === matchId)
+          );
+          
+          if (previousMatchIndex === 0) {
+            // This match feeds to home position
             nextMatch.homeParticipant = match.winner;
-            // Also set partner if this is a doubles match
             if (match.winnerPartner) {
               nextMatch.homePartner = match.winnerPartner;
             }
-          } else if (!nextMatch.awayParticipant) {
+            logger.info(`Placed winner in HOME position based on previousMatchIds[0]`);
+          } else if (previousMatchIndex === 1) {
+            // This match feeds to away position
             nextMatch.awayParticipant = match.winner;
-            // Also set partner if this is a doubles match
             if (match.winnerPartner) {
               nextMatch.awayPartner = match.winnerPartner;
             }
+            logger.info(`Placed winner in AWAY position based on previousMatchIds[1]`);
+          } else {
+            // Fallback: place in first available position
+            logger.info(`Using fallback positioning logic (previousMatchIndex: ${previousMatchIndex})`);
+            if (!nextMatch.homeParticipant) {
+              nextMatch.homeParticipant = match.winner;
+              // Also set partner if this is a doubles match
+              if (match.winnerPartner) {
+                nextMatch.homePartner = match.winnerPartner;
+              }
+            } else if (!nextMatch.awayParticipant) {
+              nextMatch.awayParticipant = match.winner;
+              // Also set partner if this is a doubles match
+              if (match.winnerPartner) {
+                nextMatch.awayPartner = match.winnerPartner;
+              }
+            }
           }
+          
           await nextMatch.save();
+          logger.info(`Updated next match ${nextMatch._id} with winner from match ${matchId}`);
         }
       }
     }

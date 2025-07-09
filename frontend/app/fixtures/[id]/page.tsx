@@ -350,7 +350,7 @@ function FixtureDetailContent({ params }: { params: Promise<Params> }) {
     // Check if it's a bye match (only one participant)
     const isByeMatch = (match.homeParticipant && !match.awayParticipant) || (!match.homeParticipant && match.awayParticipant);
     
-    if (canManageFixtures && match.status !== 'walkover' && !isByeMatch) {
+    if (canManageFixtures && match.status !== 'walkover') {
       console.log('Match clicked:', match);
       console.log('Current participants state:', participants);
       console.log('Is doubles?', isDoubles);
@@ -388,7 +388,27 @@ function FixtureDetailContent({ params }: { params: Promise<Params> }) {
   const handleUpdateMatch = async () => {
     if (!selectedMatch) return;
 
+    // Check if it's a bye match
+    const isByeMatch = (selectedMatch.homeParticipant && !selectedMatch.awayParticipant) || 
+                      (!selectedMatch.homeParticipant && selectedMatch.awayParticipant);
+
     try {
+      // For bye matches, automatically set status to walkover
+      if (isByeMatch) {
+        await axios.put(
+          `${process.env.NEXT_PUBLIC_API_URL}/fixtures/${fixture?._id}/matches/${selectedMatch._id}`,
+          {
+            status: 'walkover',
+            notes: 'Bye match - automatic advancement'
+          },
+          { withCredentials: true }
+        );
+        
+        setShowUpdateModal(false);
+        fetchFixtureDetails(); // Refresh data
+        return;
+      }
+
       // Calculate scores from sets if applicable
       let homeScore = updateForm.homeScore;
       let awayScore = updateForm.awayScore;
@@ -1102,7 +1122,7 @@ function FixtureDetailContent({ params }: { params: Promise<Params> }) {
                           <div
                             onClick={() => handleMatchClick(match)}
                             className={`relative bg-white border rounded-lg p-3 shadow-md transition-all print-match ${
-                              canManageFixtures && match.status !== 'walkover' && !isByeMatch
+                              canManageFixtures && match.status !== 'walkover'
                                 ? 'cursor-pointer hover:shadow-xl hover:border-indigo-400 hover:scale-[1.02]' 
                                 : ''
                             } ${
@@ -1738,7 +1758,12 @@ function FixtureDetailContent({ params }: { params: Promise<Params> }) {
       </div>
 
       {/* Update Match Modal */}
-      {showUpdateModal && selectedMatch && (
+      {showUpdateModal && selectedMatch && (() => {
+        // Define isByeMatch for the modal
+        const isByeMatch = (selectedMatch.homeParticipant && !selectedMatch.awayParticipant) || 
+                          (!selectedMatch.homeParticipant && selectedMatch.awayParticipant);
+        
+        return (
         <div className="fixed inset-0 bg-gray-500 bg-opacity-75 flex items-center justify-center z-50 print:hidden p-4">
           <div className="bg-white rounded-lg max-w-md w-full max-h-[90vh] flex flex-col">
             <div className="px-6 py-4 border-b border-gray-200">
@@ -1747,6 +1772,16 @@ function FixtureDetailContent({ params }: { params: Promise<Params> }) {
             
             <div className="px-6 py-4 overflow-y-auto flex-1">
               <div className="space-y-4">
+              {/* Special message for bye matches */}
+              {isByeMatch && (
+                <div className="bg-blue-50 border border-blue-200 rounded-md p-3 mb-4">
+                  <p className="text-sm text-blue-800">
+                    This is a bye match. Click "Update Match" to advance {selectedMatch.homeParticipant?.name || selectedMatch.awayParticipant?.name} to the next round.
+                  </p>
+                </div>
+              )}
+              
+              {!isByeMatch && (
               <div>
                 <label className="block text-sm font-semibold text-gray-800 mb-1">Status</label>
                 <select
@@ -1774,9 +1809,10 @@ function FixtureDetailContent({ params }: { params: Promise<Params> }) {
                   <option value="cancelled">Cancelled</option>
                 </select>
               </div>
+              )}
               
               {/* Partner Selection for Doubles */}
-              {isDoubles && fixture?.participantType === 'player' && (
+              {!isByeMatch && isDoubles && fixture?.participantType === 'player' && (
                 <div className="space-y-4">
                   <div>
                     <label className="block text-sm font-semibold text-gray-800 mb-1">
@@ -1835,7 +1871,7 @@ function FixtureDetailContent({ params }: { params: Promise<Params> }) {
               )}
               
               {/* Set-wise scores for activities with multiple sets */}
-              {hasMultipleSets && updateForm.sets.length > 0 && (
+              {!isByeMatch && hasMultipleSets && updateForm.sets.length > 0 && (
                 <div>
                   <label className="block text-sm font-semibold text-gray-800 mb-2">Set Scores</label>
                   {/* Team/Player names header */}
@@ -1940,7 +1976,7 @@ function FixtureDetailContent({ params }: { params: Promise<Params> }) {
               )}
               
               {/* Winner Selection for Sets or Score input for regular matches */}
-              {hasMultipleSets ? (
+              {!isByeMatch && hasMultipleSets ? (
                 <div>
                   <label className="block text-sm font-semibold text-gray-800 mb-2">Match Winner</label>
                   <div className="space-y-2">
@@ -1995,7 +2031,7 @@ function FixtureDetailContent({ params }: { params: Promise<Params> }) {
                     </p>
                   )}
                 </div>
-              ) : (
+              ) : !isByeMatch ? (
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-semibold text-gray-800 mb-1">
@@ -2023,7 +2059,7 @@ function FixtureDetailContent({ params }: { params: Promise<Params> }) {
                     />
                   </div>
                 </div>
-              )}
+              ) : null}
               
               <div>
                 <label className="block text-sm font-semibold text-gray-800 mb-1">Notes</label>
@@ -2053,7 +2089,8 @@ function FixtureDetailContent({ params }: { params: Promise<Params> }) {
             </div>
           </div>
         </div>
-      )}
+        );
+      })()}
     </div>
     </>
   );

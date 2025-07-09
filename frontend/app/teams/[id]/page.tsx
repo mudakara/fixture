@@ -290,15 +290,25 @@ function TeamDetailContent({ params }: { params: Promise<{ id: string }> }) {
                   <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
                     <div>
                       <dt className="text-sm font-medium text-gray-500">Captain</dt>
-                      <dd className="mt-1 text-sm text-gray-900">
-                        {team.captainId.displayName || team.captainId.name}
+                      <dd className="mt-1 text-sm">
+                        <Link 
+                          href={`/players/${team.captainId._id}`}
+                          className="text-gray-900 hover:text-indigo-600"
+                        >
+                          {team.captainId.displayName || team.captainId.name}
+                        </Link>
                         <span className="text-gray-500 text-xs block">{team.captainId.email}</span>
                       </dd>
                     </div>
                     <div>
                       <dt className="text-sm font-medium text-gray-500">Vice Captain</dt>
-                      <dd className="mt-1 text-sm text-gray-900">
-                        {team.viceCaptainId.displayName || team.viceCaptainId.name}
+                      <dd className="mt-1 text-sm">
+                        <Link 
+                          href={`/players/${team.viceCaptainId._id}`}
+                          className="text-gray-900 hover:text-indigo-600"
+                        >
+                          {team.viceCaptainId.displayName || team.viceCaptainId.name}
+                        </Link>
                         <span className="text-gray-500 text-xs block">{team.viceCaptainId.email}</span>
                       </dd>
                     </div>
@@ -414,9 +424,12 @@ function TeamDetailContent({ params }: { params: Promise<{ id: string }> }) {
                             </span>
                           </div>
                           <div>
-                            <p className="text-sm font-medium text-gray-900">
+                            <Link 
+                              href={`/players/${team.captainId._id}`}
+                              className="text-sm font-medium text-gray-900 hover:text-indigo-600"
+                            >
                               {team.captainId.displayName || team.captainId.name}
-                            </p>
+                            </Link>
                             <p className="text-sm text-gray-500">{team.captainId.email}</p>
                           </div>
                         </div>
@@ -433,9 +446,12 @@ function TeamDetailContent({ params }: { params: Promise<{ id: string }> }) {
                             </span>
                           </div>
                           <div>
-                            <p className="text-sm font-medium text-gray-900">
+                            <Link 
+                              href={`/players/${team.viceCaptainId._id}`}
+                              className="text-sm font-medium text-gray-900 hover:text-indigo-600"
+                            >
                               {team.viceCaptainId.displayName || team.viceCaptainId.name}
-                            </p>
+                            </Link>
                             <p className="text-sm text-gray-500">{team.viceCaptainId.email}</p>
                           </div>
                         </div>
@@ -458,9 +474,12 @@ function TeamDetailContent({ params }: { params: Promise<{ id: string }> }) {
                                 </span>
                               </div>
                               <div>
-                                <p className="text-sm font-medium text-gray-900">
+                                <Link 
+                                  href={`/players/${player._id}`}
+                                  className="text-sm font-medium text-gray-900 hover:text-indigo-600"
+                                >
                                   {player.displayName || player.name}
-                                </p>
+                                </Link>
                                 <p className="text-sm text-gray-500">{player.email}</p>
                               </div>
                             </div>

@@ -21,7 +21,6 @@ async function checkFixtureDetails() {
 
     const Fixture = mongoose.model('Fixture');
     const Match = mongoose.model('Match');
-    const SportGame = mongoose.model('SportGame');
     const Team = mongoose.model('Team');
 
     // Get completed team fixtures

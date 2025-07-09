@@ -44,7 +44,7 @@ npm run dev         # Start both frontend (port 3500) and backend (port 3501)
 ### Backend Structure
 - `backend/src/models/` - MongoDB models (User, Event, Team, Fixture, Match, SportGame, AuditLog, Permission)
 - `backend/src/middleware/` - Auth and logging middleware
-- `backend/src/routes/` - API endpoints (auth, users, permissions, events, teams, dashboard, sportgames, fixtures)
+- `backend/src/routes/` - API endpoints (auth, users, permissions, events, teams, dashboard, sportgames, fixtures, players, scorecard)
 - `backend/src/services/` - Business logic (authService, azureAdService, permissionService)
 - `backend/src/config/` - Configuration files (database, Azure AD)
 - `backend/src/utils/` - Utilities (logger)
@@ -69,7 +69,10 @@ npm run dev         # Start both frontend (port 3500) and backend (port 3501)
   - `fixtures/create` - Create new fixtures with participant selection
   - `fixtures/[id]/` - Fixture detail page with bracket/match visualization and print functionality
   - `fixtures/[id]/standings` - Standings page for round-robin fixtures
-  - `players/`, `reports/`, `settings/` - Feature pages
+  - `players/` - Player listing page with search and statistics
+  - `players/[id]/` - Individual player profile with achievements and match history
+  - `scorecard/teams/` - Team points leaderboard with activity breakdown
+  - `reports/`, `settings/` - Feature pages
 - `frontend/src/components/` - React components (AuthGuard, Header)
 - `frontend/src/store/` - Redux store and auth slice
 - `frontend/src/providers/` - MSAL and Redux providers
@@ -486,6 +489,16 @@ npm run dev         # Start both frontend (port 3500) and backend (port 3501)
   - Query: `?eventId=xxx` (optional, filter by event)
   - Returns: Team rankings with total points and activity breakdown
 
+### Players
+- `GET /api/players` - Get all players with search and statistics
+  - Query: `?search=xxx&limit=50&offset=0`
+  - Returns: Players with team memberships and win statistics
+- `GET /api/players/:id/profile` - Get player profile with achievements
+  - Returns: Player details, points earned, rankings by activity
+- `GET /api/players/:id/matches` - Get player's match history
+  - Query: `?limit=20&offset=0`
+  - Returns: Matches with fixture details and results
+
 ## Important Conventions
 
 1. **Next.js 15 Compatibility** - Use `React.use()` for async params in page components
@@ -593,6 +606,45 @@ Required API Permissions:
   - File validation ensures only images are accepted
   - Error handling with auto-clearing messages
   - Smooth transitions with CSS animation
+
+- **Enhanced Team Scorecard Features**:
+  - Implemented modal popup for team scorecard details
+  - Shows detailed breakdown of points earned by activity
+  - Replaced alert popup with proper modal UI component
+  - Points reference section converted to sortable table
+  - Added sortable columns for Activity and 1st Place points
+  - Visual sort indicators with arrow icons
+  - Points reference now shows all activities (including 0-point activities)
+
+- **Player Profile System**:
+  - Created comprehensive player profile feature
+  - Backend endpoints:
+    - `GET /api/players` - List all players with search and statistics
+    - `GET /api/players/:id/profile` - Get player profile with achievements
+    - `GET /api/players/:id/matches` - Get player's match history
+  - Player listing page at `/players`:
+    - Search functionality with debouncing
+    - Shows player statistics (activities, matches, wins, win rate)
+    - Color-coded win rates (green >60%, yellow 40-60%, red <40%)
+    - Links to individual player profiles
+  - Player profile page features:
+    - Overview tab with total points and rankings
+    - Achievements section showing medals earned
+    - Match history with results and fixture details
+    - Team memberships for current events
+    - Support for doubles tournaments showing partners
+  - Added player profile links from team detail pages
+
+- **Bye Match Handling Improvements**:
+  - Fixed bye matches not being clickable in tournament brackets
+  - Added special handling in match update modal for bye matches
+  - Bye matches automatically set to 'walkover' status
+  - Fixed backend advancement logic for walkover matches:
+    - Changed from `indexOf` to `findIndex` for proper ObjectId comparison
+    - Added extensive logging for debugging advancement
+    - Proper handling of previousMatchIds array for position determination
+  - Bye match winners now correctly advance to next round
+  - Visual indication with "Bye Match" message in update modal
 
 ### v0.12 Updates
 - **Team Points Scorecard System**:
