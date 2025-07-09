@@ -67,7 +67,7 @@ npm run dev         # Start both frontend (port 3500) and backend (port 3501)
   - `activity/` - Sports and games activity management
   - `fixtures/` - Fixture management with knockout/round-robin tournaments
   - `fixtures/create` - Create new fixtures with participant selection
-  - `fixtures/[id]/` - Fixture detail page with bracket/match visualization
+  - `fixtures/[id]/` - Fixture detail page with bracket/match visualization and print functionality
   - `fixtures/[id]/standings` - Standings page for round-robin fixtures
   - `players/`, `reports/`, `settings/` - Feature pages
 - `frontend/src/components/` - React components (AuthGuard, Header)
@@ -78,6 +78,7 @@ npm run dev         # Start both frontend (port 3500) and backend (port 3501)
 - `frontend/src/utils/` - Utilities (getImageUrl for handling uploads)
 - `frontend/middleware.ts` - Next.js middleware for route protection
 - `frontend/next.config.ts` - Next.js configuration with image domains
+- `frontend/app/globals.css` - Global styles including print media queries
 
 ### Database Models
 
@@ -325,6 +326,8 @@ npm run dev         # Start both frontend (port 3500) and backend (port 3501)
    - Interactive match cards with hover effects
    - Winner path highlighting in tournament brackets
    - Connection dots for visual clarity in brackets
+   - Print button for tournament brackets (knockout fixtures only)
+   - Print-optimized layout with A4 landscape support
 
 9. **Logging System**
    - All actions logged to files in `backend/logs/`
@@ -466,10 +469,75 @@ Required API Permissions:
 19. **Same-Team Match Prevention**: Use `avoidSameTeamFirstRound` setting in fixture creation
 20. **Empty Matches in Knockout**: First round creates matches only for non-bye participants
 21. **Bye Handling in Tournaments**: Players with byes advance directly to round 2
+22. **CSS Parsing Errors**: Avoid escaped class selectors in print styles (use attribute selectors)
+23. **Print Styles Not Applying**: Use dangerouslySetInnerHTML for inline styles or global CSS
+24. **Browser Print Preview Issues**: Add delay before window.print() to ensure styles load
 
 ## Recent Updates
 
-### v0.5 Updates (Latest)
+### v0.8 Updates (Latest)
+- **Print Functionality for Tournament Brackets**:
+  - Added print button for knockout tournament brackets
+  - Implemented comprehensive print styles using multiple approaches:
+    - Inline styles with `dangerouslySetInnerHTML` in the fixture detail page
+    - Global print media queries in `app/globals.css`
+    - Multiple print-specific CSS files created during implementation
+  - Print features include:
+    - A4 landscape orientation with 10mm margins
+    - Hidden navigation elements, buttons, and UI controls during print
+    - Print-specific header showing fixture name, event, and date
+    - Tournament bracket scaling (0.85x default, 0.7x for large tournaments)
+    - Black and white color scheme for better print quality
+    - Grayscale winner highlighting and champion cards
+    - Connection lines preserved in print view
+    - Page break handling for multi-page tournaments
+  - Technical implementation:
+    - Added `printing-bracket` class to body during print operation
+    - Used CSS attribute selectors to avoid escaped class selector issues
+    - Force color printing with `-webkit-print-color-adjust: exact`
+    - Visibility and opacity overrides to ensure content displays
+  - Known limitations:
+    - Print functionality may require browser-specific adjustments
+    - Some browsers may not fully respect print media queries
+    - Complex bracket layouts may need manual scaling adjustments
+
+### v0.7 Updates
+- **Doubles Tournament Support**:
+  - Added doubles support for player fixtures in sports/games
+  - Backend modifications:
+    - Added `isDoubles` boolean field to SportGame model
+    - Added partner fields to Match model: `homePartner`, `awayPartner`, `winnerPartner`, `loserPartner`
+    - Modified fixture details API to return all event players for doubles fixtures
+    - Added `/api/fixtures/:fixtureId/matches/:matchId/partners` endpoint for updating partners
+  - Frontend enhancements:
+    - Partner selection dropdowns in match update modal
+    - "Add Partner" buttons displayed on match cards when partners not assigned
+    - Intelligent partner availability logic:
+      - Only shows players from the same team as available partners
+      - Excludes players already participating in other matches
+      - Handles partner updates and reassignments
+    - Enhanced match card layout to display doubles pairs
+    - Increased match card height for doubles fixtures (170px)
+  - Partner selection algorithm:
+    - Validates team membership for current event
+    - Prevents selecting players already in the fixture
+    - Allows editing existing partner assignments
+    - Maintains team cohesion in doubles pairings
+
+### v0.6 Updates
+- **Dynamic Match Results and Advanced Partner Logic**:
+  - Enhanced tournament advancement based on actual match results
+  - Added dynamic result checking with `determineAdvancingParticipant()` function
+  - Improved doubles partner selection algorithm:
+    - Uses `allEventPlayers` for comprehensive partner pool
+    - Validates partners are from same team as primary participant
+    - Excludes players already participating in any match
+    - Allows reassignment of partners during match updates
+  - Fixed partner selection dropdown showing "No available partners"
+  - Backend properly returns all team players for partner selection
+  - Winner determination respects completed match results over walkovers
+
+### v0.5 Updates
 - **Enhanced Knockout Bracket Generation with Proper Bye Handling**:
   - Implemented proper tournament bracket structure following standard conventions
   - Calculates bracket size as next power of 2 to accommodate all participants
