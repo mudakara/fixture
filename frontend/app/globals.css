@@ -74,7 +74,7 @@ body {
   }
   
   /* Remove all padding and margins */
-  .px-4, .py-6, .sm\\:px-6, .lg\\:px-8, .sm\\:px-0 {
+  [class*="px-"], [class*="py-"] {
     padding: 0 !important;
   }
   
@@ -211,9 +211,7 @@ body {
   }
   
   /* Hide interactive elements */
-  #knockout-bracket .hover\\:shadow-xl,
-  #knockout-bracket .hover\\:scale-\\[1\\.02\\],
-  #knockout-bracket .hover\\:border-indigo-400 {
+  #knockout-bracket [class*="hover"] {
     cursor: default !important;
   }
   
