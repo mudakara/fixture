@@ -143,6 +143,7 @@ npm run dev         # Start both frontend (port 3500) and backend (port 3501)
   maxPlayers: number
   equipment?: string[]
   duration?: number
+  isDoubles?: boolean // For doubles tournaments
   createdBy: ObjectId (User)
   isActive: boolean
 }
@@ -189,10 +190,14 @@ npm run dev         # Start both frontend (port 3500) and backend (port 3501)
   matchNumber: number
   homeParticipant?: ObjectId // Player or Team ID
   awayParticipant?: ObjectId // Player or Team ID
+  homePartner?: ObjectId // For doubles matches
+  awayPartner?: ObjectId // For doubles matches
   homeScore?: number
   awayScore?: number
   winner?: ObjectId
+  winnerPartner?: ObjectId // For doubles matches
   loser?: ObjectId
+  loserPartner?: ObjectId // For doubles matches
   status: 'scheduled' | 'in_progress' | 'completed' | 'cancelled' | 'postponed' | 'walkover'
   scheduledDate?: Date
   actualDate?: Date
@@ -250,6 +255,8 @@ npm run dev         # Start both frontend (port 3500) and backend (port 3501)
    - Players with byes skip round 1 and enter in round 2
    - Total rounds = ceil(log2(bracketSize))
    - Example: 10 players → 16 bracket size → 6 byes → 2 first round matches
+   - Bye matches properly labeled as "Bye Match" instead of "scheduled"
+   - Non-interactive bye match cards (no hover/click functionality)
 
 ### Key Features
 
@@ -288,6 +295,8 @@ npm run dev         # Start both frontend (port 3500) and backend (port 3501)
    - Match result recording and winner progression
    - Standings calculation for round-robin fixtures
    - Fixture filtering by event, format, and status
+   - Proper bye match handling with "Bye Match" labels
+   - Non-interactive bye matches (no hover/click)
 
 5. **Dashboard with Real-Time Statistics**
    - Total counts for events, teams, users, and fixtures
@@ -472,10 +481,20 @@ Required API Permissions:
 22. **CSS Parsing Errors**: Avoid escaped class selectors in print styles (use attribute selectors)
 23. **Print Styles Not Applying**: Use dangerouslySetInnerHTML for inline styles or global CSS
 24. **Browser Print Preview Issues**: Add delay before window.print() to ensure styles load
+25. **Bye Matches Showing as "Scheduled"**: Check for single participant and display "Bye Match" label
 
 ## Recent Updates
 
-### v0.8 Updates (Latest)
+### v0.9 Updates (Latest)
+- **Bye Match Label Fix for Odd Number of Participants**:
+  - Fixed issue where bye matches in round 2 showed "scheduled" instead of "Bye"
+  - Added detection logic for bye matches: `(match.homeParticipant && !match.awayParticipant) || (!match.homeParticipant && match.awayParticipant)`
+  - Status badge now displays "Bye Match" for matches with only one participant
+  - Disabled click interactions on bye matches (no hover effects, no update modal)
+  - Works for bye matches in any round, not just round 2
+  - Provides clearer UI indication that these matches don't require any action
+
+### v0.8 Updates
 - **Print Functionality for Tournament Brackets**:
   - Added print button for knockout tournament brackets
   - Implemented comprehensive print styles using multiple approaches:
