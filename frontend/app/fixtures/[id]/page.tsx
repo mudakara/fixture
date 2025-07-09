@@ -245,7 +245,10 @@ function FixtureDetailContent({ params }: { params: Promise<Params> }) {
   };
 
   const handleMatchClick = (match: Match) => {
-    if (canManageFixtures && match.status !== 'walkover') {
+    // Check if it's a bye match (only one participant)
+    const isByeMatch = (match.homeParticipant && !match.awayParticipant) || (!match.homeParticipant && match.awayParticipant);
+    
+    if (canManageFixtures && match.status !== 'walkover' && !isByeMatch) {
       console.log('Match clicked:', match);
       console.log('Current participants state:', participants);
       console.log('Is doubles?', isDoubles);
@@ -898,22 +901,27 @@ function FixtureDetailContent({ params }: { params: Promise<Params> }) {
                         </>
                       )}
                       {/* Match card */}
-                      <div
-                        onClick={() => handleMatchClick(match)}
-                        className={`relative bg-white border rounded-lg p-3 shadow-md transition-all print-match ${
-                          canManageFixtures && match.status !== 'walkover' 
-                            ? 'cursor-pointer hover:shadow-xl hover:border-indigo-400 hover:scale-[1.02]' 
-                            : ''
-                        } ${
-                          isChampion ? 'border-2 border-yellow-400 bg-gradient-to-br from-yellow-50 to-white shadow-xl print-champion' :
-                          match.status === 'completed' ? 'border-green-300 bg-gradient-to-br from-green-50 to-white print-winner' : 'border-gray-300'
-                        }`}
-                        style={{ height: `${matchHeight}px`, zIndex: 20 }}
-                      >
+                      {(() => {
+                        const isByeMatch = (match.homeParticipant && !match.awayParticipant) || (!match.homeParticipant && match.awayParticipant);
+                        return (
+                          <div
+                            onClick={() => handleMatchClick(match)}
+                            className={`relative bg-white border rounded-lg p-3 shadow-md transition-all print-match ${
+                              canManageFixtures && match.status !== 'walkover' && !isByeMatch
+                                ? 'cursor-pointer hover:shadow-xl hover:border-indigo-400 hover:scale-[1.02]' 
+                                : ''
+                            } ${
+                              isChampion ? 'border-2 border-yellow-400 bg-gradient-to-br from-yellow-50 to-white shadow-xl print-champion' :
+                              match.status === 'completed' ? 'border-green-300 bg-gradient-to-br from-green-50 to-white print-winner' : 'border-gray-300'
+                            }`}
+                            style={{ height: `${matchHeight}px`, zIndex: 20 }}
+                          >
                         <div className="flex justify-between items-center mb-2">
                           <span className="text-xs font-medium text-gray-600">Match {match.matchNumber}</span>
                           <span className={`text-xs px-2 py-1 rounded-full ${getStatusBadgeColor(match.status)}`}>
-                            {match.status === 'walkover' ? 'Bye' : match.status}
+                            {match.status === 'walkover' ? 'Bye' : 
+                             (match.status === 'scheduled' && ((match.homeParticipant && !match.awayParticipant) || (!match.homeParticipant && match.awayParticipant))) ? 'Bye Match' :
+                             match.status}
                           </span>
                         </div>
                         
@@ -1009,6 +1017,8 @@ function FixtureDetailContent({ params }: { params: Promise<Params> }) {
                           </div>
                         </div>
                       </div>
+                        );
+                      })()}
                     </div>
                   );
                 })}
