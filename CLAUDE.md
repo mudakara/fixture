@@ -144,6 +144,8 @@ npm run dev         # Start both frontend (port 3500) and backend (port 3501)
   equipment?: string[]
   duration?: number
   isDoubles?: boolean // For doubles tournaments
+  hasMultipleSets?: boolean // For activities with multiple sets
+  numberOfSets?: number // Number of sets (1-5)
   createdBy: ObjectId (User)
   isActive: boolean
 }
@@ -213,6 +215,11 @@ npm run dev         # Start both frontend (port 3500) and backend (port 3501)
     periods?: Array
     overtime?: boolean
     penaltyShootout?: object
+    sets?: Array<{
+      setNumber: number
+      homeScore: number
+      awayScore: number
+    }>
   }
 }
 ```
@@ -487,7 +494,42 @@ Required API Permissions:
 
 ## Recent Updates
 
-### v0.10 Updates (Latest)
+### v0.11 Updates (Latest)
+- **Multiple Sets Support for Activities**:
+  - Added "How many Sets?" feature for sports/games activities
+  - Backend changes:
+    - Added `hasMultipleSets` and `numberOfSets` fields to SportGame model
+    - Number of sets limited to 1-5 sets
+    - Pre-save validation ensures numberOfSets is set when hasMultipleSets is true
+    - Added sets array to Match model's scoreDetails field
+  - Frontend implementation:
+    - Checkbox to enable multiple sets in activity creation/edit forms
+    - Dropdown selector for number of sets (1-5)
+    - Sets configuration properly saved and loaded in edit forms
+    - Activity cards and detail pages show sets badge (e.g., "3 Sets")
+  - Match update functionality:
+    - Set-wise score inputs for activities with multiple sets
+    - Winner selection UI with role-based access control
+    - Auto-calculation of match winner based on sets won
+    - Only super_admin and admin can manually override winner
+    - Team names displayed above set scores
+    - Visual indicators for set winners with checkmarks
+    - Running tally of sets won displayed
+  - UX improvements:
+    - Scrollable modal with sticky header/footer for many sets
+    - Fixed layout ensures Update Match button always accessible
+    - Responsive design handles up to 5 sets efficiently
+  
+- **Enhanced Drag-and-Drop Edit Mode**:
+  - Added team names to player cards during fixture editing
+  - Team names shown below player names for clarity
+  - Helps admins understand team movements during bracket adjustments
+  
+- **UI Cleanup**:
+  - Removed unnecessary "draft" status badge from fixture details page
+  - Cleaner interface focuses on important match information
+
+### v0.10 Updates
 - **Drag-and-Drop Fixture Editing for Super Admins**:
   - Added "Edit Fixture" button for super admins on player knockout tournaments
   - Implemented drag-and-drop functionality using @dnd-kit library

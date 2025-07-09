@@ -737,7 +737,7 @@ router.get('/:id', authenticate, async (req: Request, res: Response): Promise<vo
 
     const fixture = await Fixture.findById(id)
       .populate('eventId', 'name startDate endDate')
-      .populate('sportGameId', 'title type category isDoubles')
+      .populate('sportGameId', 'title type category isDoubles hasMultipleSets numberOfSets')
       .populate('createdBy', 'name email');
 
     if (!fixture || !fixture.isActive) {
@@ -998,7 +998,7 @@ router.get('/:id', authenticate, async (req: Request, res: Response): Promise<vo
 router.put('/:fixtureId/matches/:matchId', authenticate, canManageFixtures, async (req: Request, res: Response): Promise<void> => {
   try {
     const { fixtureId, matchId } = req.params;
-    const { homeScore, awayScore, status, notes, scoreDetails } = req.body;
+    const { homeScore, awayScore, status, notes, scoreDetails, winnerId } = req.body;
     const user = (req as any).user;
 
     const match = await Match.findOne({ _id: matchId, fixtureId });
@@ -1019,6 +1019,24 @@ router.put('/:fixtureId/matches/:matchId', authenticate, canManageFixtures, asyn
       // Use the model's determineWinner method which handles partners
       match.determineWinner();
       match.actualDate = new Date();
+      
+      // Allow manual winner override for admins/super admins with sets
+      if (winnerId && (user.role === 'super_admin' || user.role === 'admin')) {
+        const validWinner = (match.homeParticipant?.toString() === winnerId || match.awayParticipant?.toString() === winnerId);
+        if (validWinner) {
+          match.winner = winnerId;
+          match.loser = match.homeParticipant?.toString() === winnerId ? match.awayParticipant : match.homeParticipant;
+          
+          // Handle doubles partners
+          if (match.homeParticipant?.toString() === winnerId) {
+            match.winnerPartner = match.homePartner;
+            match.loserPartner = match.awayPartner;
+          } else {
+            match.winnerPartner = match.awayPartner;
+            match.loserPartner = match.homePartner;
+          }
+        }
+      }
       
       // If knockout, update next match
       if (match.winner && match.nextMatchId) {

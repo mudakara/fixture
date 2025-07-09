@@ -13,6 +13,8 @@ export interface ISportGame extends Document {
   equipment?: string[];
   image?: string;
   isDoubles?: boolean;
+  hasMultipleSets?: boolean;
+  numberOfSets?: number; // 1 to 5
   isActive: boolean;
   createdBy: mongoose.Types.ObjectId;
   createdAt: Date;
@@ -70,6 +72,16 @@ const SportGameSchema = new Schema<ISportGame>(
       type: Boolean,
       default: false
     },
+    hasMultipleSets: {
+      type: Boolean,
+      default: false
+    },
+    numberOfSets: {
+      type: Number,
+      min: 1,
+      max: 5,
+      default: 1
+    },
     isActive: {
       type: Boolean,
       default: true
@@ -92,9 +104,16 @@ SportGameSchema.index({ category: 1 });
 SportGameSchema.index({ isActive: 1 });
 
 // Validate max players is greater than or equal to min players
+// and validate sets configuration
 SportGameSchema.pre('save', function(next) {
   if (this.minPlayers && this.maxPlayers && this.maxPlayers < this.minPlayers) {
     next(new Error('Maximum players must be greater than or equal to minimum players'));
+  } else if (this.hasMultipleSets && (!this.numberOfSets || this.numberOfSets < 1 || this.numberOfSets > 5)) {
+    next(new Error('Number of sets must be between 1 and 5 when multiple sets are enabled'));
+  } else if (!this.hasMultipleSets) {
+    // Reset numberOfSets to 1 if hasMultipleSets is false
+    this.numberOfSets = 1;
+    next();
   } else {
     next();
   }

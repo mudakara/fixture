@@ -104,7 +104,9 @@ function FixtureDetailContent({ params }: { params: Promise<Params> }) {
     status: 'scheduled',
     notes: '',
     homePartner: '',
-    awayPartner: ''
+    awayPartner: '',
+    sets: [] as Array<{ setNumber: number; homeScore: number; awayScore: number }>,
+    winner: '' as string // Will store participant ID
   });
   const [isEditMode, setIsEditMode] = useState(false);
 
@@ -116,6 +118,10 @@ function FixtureDetailContent({ params }: { params: Promise<Params> }) {
   
   // Check if this is a doubles fixture
   const isDoubles = fixture?.sportGameId?.isDoubles === true;
+  
+  // Check if this activity has multiple sets
+  const hasMultipleSets = fixture?.sportGameId?.hasMultipleSets === true;
+  const numberOfSets = fixture?.sportGameId?.numberOfSets || 1;
   
   // Debug logging
   useEffect(() => {
@@ -251,6 +257,22 @@ function FixtureDetailContent({ params }: { params: Promise<Params> }) {
     return colors[status] || 'bg-gray-100 text-gray-800';
   };
 
+  // Calculate winner based on sets won
+  const calculateWinnerFromSets = (sets: Array<{ setNumber: number; homeScore: number; awayScore: number }>) => {
+    let homeSetsWon = 0;
+    let awaySetsWon = 0;
+    
+    sets.forEach(set => {
+      if (set.homeScore > set.awayScore) {
+        homeSetsWon++;
+      } else if (set.awayScore > set.homeScore) {
+        awaySetsWon++;
+      }
+    });
+    
+    return { homeSetsWon, awaySetsWon };
+  };
+
   const handleMatchClick = (match: Match) => {
     // Check if it's a bye match (only one participant)
     const isByeMatch = (match.homeParticipant && !match.awayParticipant) || (!match.homeParticipant && match.awayParticipant);
@@ -261,13 +283,30 @@ function FixtureDetailContent({ params }: { params: Promise<Params> }) {
       console.log('Is doubles?', isDoubles);
       
       setSelectedMatch(match);
+      
+      // Initialize sets if activity has multiple sets
+      let sets: Array<{ setNumber: number; homeScore: number; awayScore: number }> = [];
+      if (hasMultipleSets) {
+        // If match already has sets data, use it
+        if (match.scoreDetails?.sets && match.scoreDetails.sets.length > 0) {
+          sets = match.scoreDetails.sets;
+        } else {
+          // Initialize empty sets
+          for (let i = 1; i <= numberOfSets; i++) {
+            sets.push({ setNumber: i, homeScore: 0, awayScore: 0 });
+          }
+        }
+      }
+      
       setUpdateForm({
         homeScore: match.homeScore || 0,
         awayScore: match.awayScore || 0,
         status: match.status,
         notes: match.notes || '',
         homePartner: match.homePartner?._id || '',
-        awayPartner: match.awayPartner?._id || ''
+        awayPartner: match.awayPartner?._id || '',
+        sets,
+        winner: match.winner?._id || ''
       });
       setShowUpdateModal(true);
     }
@@ -277,14 +316,34 @@ function FixtureDetailContent({ params }: { params: Promise<Params> }) {
     if (!selectedMatch) return;
 
     try {
+      // Calculate scores from sets if applicable
+      let homeScore = updateForm.homeScore;
+      let awayScore = updateForm.awayScore;
+      
+      // Prepare score details with sets if applicable
+      const scoreDetails: any = {};
+      if (hasMultipleSets && updateForm.sets.length > 0) {
+        scoreDetails.sets = updateForm.sets;
+        
+        // Calculate final scores based on sets won
+        const { homeSetsWon, awaySetsWon } = calculateWinnerFromSets(updateForm.sets);
+        homeScore = homeSetsWon;
+        awayScore = awaySetsWon;
+      }
+      
       // Update match scores and status
       await axios.put(
         `${process.env.NEXT_PUBLIC_API_URL}/fixtures/${fixture?._id}/matches/${selectedMatch._id}`,
         {
-          homeScore: updateForm.homeScore,
-          awayScore: updateForm.awayScore,
+          homeScore,
+          awayScore,
           status: updateForm.status,
-          notes: updateForm.notes
+          notes: updateForm.notes,
+          scoreDetails,
+          // Include manual winner override if sets are used and admin/super admin
+          ...(hasMultipleSets && updateForm.winner && (user?.role === 'super_admin' || user?.role === 'admin') 
+            ? { winnerId: updateForm.winner } 
+            : {})
         },
         { withCredentials: true }
       );
@@ -1484,16 +1543,32 @@ function FixtureDetailContent({ params }: { params: Promise<Params> }) {
 
       {/* Update Match Modal */}
       {showUpdateModal && selectedMatch && (
-        <div className="fixed inset-0 bg-gray-500 bg-opacity-75 flex items-center justify-center z-50 print:hidden">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Update Match</h3>
+        <div className="fixed inset-0 bg-gray-500 bg-opacity-75 flex items-center justify-center z-50 print:hidden p-4">
+          <div className="bg-white rounded-lg max-w-md w-full max-h-[90vh] flex flex-col">
+            <div className="px-6 py-4 border-b border-gray-200">
+              <h3 className="text-lg font-semibold text-gray-900">Update Match</h3>
+            </div>
             
-            <div className="space-y-4">
+            <div className="px-6 py-4 overflow-y-auto flex-1">
+              <div className="space-y-4">
               <div>
                 <label className="block text-sm font-semibold text-gray-800 mb-1">Status</label>
                 <select
                   value={updateForm.status}
-                  onChange={(e) => setUpdateForm({ ...updateForm, status: e.target.value })}
+                  onChange={(e) => {
+                    const newStatus = e.target.value;
+                    setUpdateForm({ ...updateForm, status: newStatus });
+                    
+                    // Auto-calculate winner when status is set to completed
+                    if (newStatus === 'completed' && hasMultipleSets && updateForm.sets.length > 0) {
+                      const { homeSetsWon, awaySetsWon } = calculateWinnerFromSets(updateForm.sets);
+                      if (homeSetsWon > awaySetsWon && selectedMatch.homeParticipant) {
+                        setUpdateForm(prev => ({ ...prev, status: newStatus, winner: selectedMatch.homeParticipant._id }));
+                      } else if (awaySetsWon > homeSetsWon && selectedMatch.awayParticipant) {
+                        setUpdateForm(prev => ({ ...prev, status: newStatus, winner: selectedMatch.awayParticipant._id }));
+                      }
+                    }
+                  }}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500 text-gray-900"
                 >
                   <option value="scheduled">Scheduled</option>
@@ -1563,33 +1638,196 @@ function FixtureDetailContent({ params }: { params: Promise<Params> }) {
                 </div>
               )}
               
-              <div className="grid grid-cols-2 gap-4">
+              {/* Set-wise scores for activities with multiple sets */}
+              {hasMultipleSets && updateForm.sets.length > 0 && (
                 <div>
-                  <label className="block text-sm font-semibold text-gray-800 mb-1">
-                    {selectedMatch.homeParticipant?.name || 'Home'} Score
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    value={updateForm.homeScore}
-                    onChange={(e) => setUpdateForm({ ...updateForm, homeScore: parseInt(e.target.value) })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500 text-gray-900"
-                  />
+                  <label className="block text-sm font-semibold text-gray-800 mb-2">Set Scores</label>
+                  {/* Team/Player names header */}
+                  <div className="grid grid-cols-3 gap-2 mb-2">
+                    <div></div>
+                    <div className="text-xs font-medium text-gray-600 text-center">
+                      {selectedMatch.homeParticipant?.name || 'Home'}
+                    </div>
+                    <div className="text-xs font-medium text-gray-600 text-center">
+                      {selectedMatch.awayParticipant?.name || 'Away'}
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    {updateForm.sets.map((set, index) => {
+                      const homeWon = set.homeScore > set.awayScore;
+                      const awayWon = set.awayScore > set.homeScore;
+                      
+                      return (
+                        <div key={set.setNumber} className="grid grid-cols-3 gap-2 items-center">
+                          <div className="text-sm font-medium text-gray-700 text-center">
+                            Set {set.setNumber}
+                          </div>
+                          <div className="relative">
+                            <input
+                              type="number"
+                              min="0"
+                              value={set.homeScore}
+                              onChange={(e) => {
+                                const newSets = [...updateForm.sets];
+                                newSets[index] = { ...set, homeScore: parseInt(e.target.value) || 0 };
+                                setUpdateForm({ ...updateForm, sets: newSets });
+                                
+                                // Auto-calculate winner if status is completed
+                                if (updateForm.status === 'completed') {
+                                  const { homeSetsWon, awaySetsWon } = calculateWinnerFromSets(newSets);
+                                  if (homeSetsWon > awaySetsWon && selectedMatch.homeParticipant) {
+                                    setUpdateForm(prev => ({ ...prev, sets: newSets, winner: selectedMatch.homeParticipant._id }));
+                                  } else if (awaySetsWon > homeSetsWon && selectedMatch.awayParticipant) {
+                                    setUpdateForm(prev => ({ ...prev, sets: newSets, winner: selectedMatch.awayParticipant._id }));
+                                  } else {
+                                    setUpdateForm(prev => ({ ...prev, sets: newSets, winner: '' }));
+                                  }
+                                }
+                              }}
+                              className={`w-full px-2 py-1 border rounded-md focus:ring-indigo-500 focus:border-indigo-500 text-gray-900 text-center ${
+                                homeWon ? 'border-green-500 bg-green-50' : 'border-gray-300'
+                              }`}
+                            />
+                            {homeWon && (
+                              <div className="absolute -right-1 -top-1 w-2 h-2 bg-green-500 rounded-full"></div>
+                            )}
+                          </div>
+                          <div className="relative">
+                            <input
+                              type="number"
+                              min="0"
+                              value={set.awayScore}
+                              onChange={(e) => {
+                                const newSets = [...updateForm.sets];
+                                newSets[index] = { ...set, awayScore: parseInt(e.target.value) || 0 };
+                                setUpdateForm({ ...updateForm, sets: newSets });
+                                
+                                // Auto-calculate winner if status is completed
+                                if (updateForm.status === 'completed') {
+                                  const { homeSetsWon, awaySetsWon } = calculateWinnerFromSets(newSets);
+                                  if (homeSetsWon > awaySetsWon && selectedMatch.homeParticipant) {
+                                    setUpdateForm(prev => ({ ...prev, sets: newSets, winner: selectedMatch.homeParticipant._id }));
+                                  } else if (awaySetsWon > homeSetsWon && selectedMatch.awayParticipant) {
+                                    setUpdateForm(prev => ({ ...prev, sets: newSets, winner: selectedMatch.awayParticipant._id }));
+                                  } else {
+                                    setUpdateForm(prev => ({ ...prev, sets: newSets, winner: '' }));
+                                  }
+                                }
+                              }}
+                              className={`w-full px-2 py-1 border rounded-md focus:ring-indigo-500 focus:border-indigo-500 text-gray-900 text-center ${
+                                awayWon ? 'border-green-500 bg-green-50' : 'border-gray-300'
+                              }`}
+                            />
+                            {awayWon && (
+                              <div className="absolute -right-1 -top-1 w-2 h-2 bg-green-500 rounded-full"></div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  {(() => {
+                    const { homeSetsWon, awaySetsWon } = calculateWinnerFromSets(updateForm.sets);
+                    return (
+                      <div className="mt-2 text-sm font-medium text-center">
+                        <span className={homeSetsWon > awaySetsWon ? 'text-green-600' : 'text-gray-600'}>
+                          {selectedMatch.homeParticipant?.name || 'Home'}: {homeSetsWon}
+                        </span>
+                        <span className="mx-2 text-gray-400">-</span>
+                        <span className={awaySetsWon > homeSetsWon ? 'text-green-600' : 'text-gray-600'}>
+                          {selectedMatch.awayParticipant?.name || 'Away'}: {awaySetsWon}
+                        </span>
+                      </div>
+                    );
+                  })()}
                 </div>
-                
+              )}
+              
+              {/* Winner Selection for Sets or Score input for regular matches */}
+              {hasMultipleSets ? (
                 <div>
-                  <label className="block text-sm font-semibold text-gray-800 mb-1">
-                    {selectedMatch.awayParticipant?.name || 'Away'} Score
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    value={updateForm.awayScore}
-                    onChange={(e) => setUpdateForm({ ...updateForm, awayScore: parseInt(e.target.value) })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500 text-gray-900"
-                  />
+                  <label className="block text-sm font-semibold text-gray-800 mb-2">Match Winner</label>
+                  <div className="space-y-2">
+                    {selectedMatch.homeParticipant && (
+                      <label className="flex items-center space-x-3 p-3 border rounded-md cursor-pointer hover:bg-gray-50">
+                        <input
+                          type="radio"
+                          name="winner"
+                          value={selectedMatch.homeParticipant._id}
+                          checked={updateForm.winner === selectedMatch.homeParticipant._id}
+                          onChange={(e) => setUpdateForm({ ...updateForm, winner: e.target.value })}
+                          disabled={user?.role !== 'super_admin' && user?.role !== 'admin'}
+                          className="h-4 w-4 text-indigo-600 focus:ring-indigo-500"
+                        />
+                        <span className="text-sm font-medium text-gray-900">
+                          {selectedMatch.homeParticipant.name || selectedMatch.homeParticipant.displayName}
+                        </span>
+                        {(() => {
+                          const { homeSetsWon } = calculateWinnerFromSets(updateForm.sets);
+                          return homeSetsWon > 0 && (
+                            <span className="text-xs text-gray-500">({homeSetsWon} sets won)</span>
+                          );
+                        })()}
+                      </label>
+                    )}
+                    {selectedMatch.awayParticipant && (
+                      <label className="flex items-center space-x-3 p-3 border rounded-md cursor-pointer hover:bg-gray-50">
+                        <input
+                          type="radio"
+                          name="winner"
+                          value={selectedMatch.awayParticipant._id}
+                          checked={updateForm.winner === selectedMatch.awayParticipant._id}
+                          onChange={(e) => setUpdateForm({ ...updateForm, winner: e.target.value })}
+                          disabled={user?.role !== 'super_admin' && user?.role !== 'admin'}
+                          className="h-4 w-4 text-indigo-600 focus:ring-indigo-500"
+                        />
+                        <span className="text-sm font-medium text-gray-900">
+                          {selectedMatch.awayParticipant.name || selectedMatch.awayParticipant.displayName}
+                        </span>
+                        {(() => {
+                          const { awaySetsWon } = calculateWinnerFromSets(updateForm.sets);
+                          return awaySetsWon > 0 && (
+                            <span className="text-xs text-gray-500">({awaySetsWon} sets won)</span>
+                          );
+                        })()}
+                      </label>
+                    )}
+                  </div>
+                  {user?.role !== 'super_admin' && user?.role !== 'admin' && (
+                    <p className="mt-2 text-xs text-gray-500">
+                      Only Super Admins and Admins can manually override the match winner.
+                    </p>
+                  )}
                 </div>
-              </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-800 mb-1">
+                      {selectedMatch.homeParticipant?.name || 'Home'} Score
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={updateForm.homeScore}
+                      onChange={(e) => setUpdateForm({ ...updateForm, homeScore: parseInt(e.target.value) })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500 text-gray-900"
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-800 mb-1">
+                      {selectedMatch.awayParticipant?.name || 'Away'} Score
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={updateForm.awayScore}
+                      onChange={(e) => setUpdateForm({ ...updateForm, awayScore: parseInt(e.target.value) })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500 text-gray-900"
+                    />
+                  </div>
+                </div>
+              )}
               
               <div>
                 <label className="block text-sm font-semibold text-gray-800 mb-1">Notes</label>
@@ -1600,9 +1838,10 @@ function FixtureDetailContent({ params }: { params: Promise<Params> }) {
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500 text-gray-900"
                 />
               </div>
+              </div>
             </div>
             
-            <div className="mt-6 flex justify-end space-x-3">
+            <div className="px-6 py-4 border-t border-gray-200 flex justify-end space-x-3">
               <button
                 onClick={() => setShowUpdateModal(false)}
                 className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"

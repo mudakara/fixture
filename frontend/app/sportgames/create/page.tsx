@@ -26,6 +26,8 @@ function CreateSportGameContent() {
     venue: '',
     equipment: '',
     isDoubles: false,
+    hasMultipleSets: false,
+    numberOfSets: '1',
     image: null as File | null
   });
 
@@ -89,6 +91,10 @@ function CreateSportGameContent() {
       if (formData.venue) formDataToSend.append('venue', formData.venue);
       if (formData.equipment) formDataToSend.append('equipment', formData.equipment);
       formDataToSend.append('isDoubles', formData.isDoubles.toString());
+      formDataToSend.append('hasMultipleSets', formData.hasMultipleSets.toString());
+      if (formData.hasMultipleSets && formData.numberOfSets) {
+        formDataToSend.append('numberOfSets', formData.numberOfSets);
+      }
       if (formData.image) formDataToSend.append('image', formData.image);
 
       const response = await axios.post(
@@ -263,6 +269,50 @@ function CreateSportGameContent() {
                   <p className="mt-1 text-sm text-gray-500">
                     Check this if the activity is played in doubles format (e.g., badminton doubles, tennis doubles)
                   </p>
+                </div>
+
+                {/* Has Multiple Sets */}
+                <div>
+                  <div className="flex items-center">
+                    <input
+                      type="checkbox"
+                      name="hasMultipleSets"
+                      id="hasMultipleSets"
+                      checked={formData.hasMultipleSets}
+                      onChange={handleInputChange}
+                      className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+                    />
+                    <label htmlFor="hasMultipleSets" className="ml-2 block text-sm text-gray-900">
+                      How many Sets?
+                    </label>
+                  </div>
+                  <p className="mt-1 text-sm text-gray-500">
+                    Check this if matches are played in multiple sets (e.g., best of 3 sets, best of 5 sets)
+                  </p>
+                  
+                  {formData.hasMultipleSets && (
+                    <div className="mt-3">
+                      <label htmlFor="numberOfSets" className="block text-sm font-medium text-gray-700">
+                        Number of Sets
+                      </label>
+                      <select
+                        name="numberOfSets"
+                        id="numberOfSets"
+                        value={formData.numberOfSets}
+                        onChange={handleInputChange}
+                        className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-gray-900"
+                      >
+                        <option value="1">1 Set</option>
+                        <option value="2">2 Sets</option>
+                        <option value="3">3 Sets</option>
+                        <option value="4">4 Sets</option>
+                        <option value="5">5 Sets</option>
+                      </select>
+                      <p className="mt-1 text-sm text-gray-500">
+                        Select the maximum number of sets to be played
+                      </p>
+                    </div>
+                  )}
                 </div>
 
                 {/* Duration */}

@@ -36,6 +36,11 @@ export interface IMatch extends Document {
       homeScore: number;
       awayScore: number;
     }>;
+    sets?: Array<{
+      setNumber: number;
+      homeScore: number;
+      awayScore: number;
+    }>;
     overtime?: boolean;
     penaltyShootout?: {
       homeScore: number;
@@ -146,6 +151,11 @@ const MatchSchema = new Schema<IMatch>(
     scoreDetails: {
       periods: [{
         period: Number,
+        homeScore: Number,
+        awayScore: Number
+      }],
+      sets: [{
+        setNumber: Number,
         homeScore: Number,
         awayScore: Number
       }],

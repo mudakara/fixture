@@ -57,7 +57,7 @@ const adminOnly = (req: Request, res: Response, next: Function) => {
 // Create a new sport/game
 router.post('/sportgames', authenticate, adminOnly, upload.single('image'), async (req: Request, res: Response): Promise<void> => {
   try {
-    const { title, description, type, category, rules, minPlayers, maxPlayers, duration, venue, equipment, isDoubles } = req.body;
+    const { title, description, type, category, rules, minPlayers, maxPlayers, duration, venue, equipment, isDoubles, hasMultipleSets, numberOfSets } = req.body;
     const user = (req as any).user;
 
     // Validate required fields
@@ -96,6 +96,8 @@ router.post('/sportgames', authenticate, adminOnly, upload.single('image'), asyn
       venue,
       equipment: equipmentArray,
       isDoubles: isDoubles === 'true' || isDoubles === true,
+      hasMultipleSets: hasMultipleSets === 'true' || hasMultipleSets === true,
+      numberOfSets: numberOfSets ? parseInt(numberOfSets) : undefined,
       image: req.file ? `/uploads/sportgames/${req.file.filename}` : undefined,
       createdBy: user._id
     });
@@ -196,7 +198,7 @@ router.get('/sportgames/:id', authenticate, async (req: Request, res: Response):
 router.put('/sportgames/:id', authenticate, adminOnly, upload.single('image'), async (req: Request, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
-    const { title, description, type, category, rules, minPlayers, maxPlayers, duration, venue, equipment, isDoubles } = req.body;
+    const { title, description, type, category, rules, minPlayers, maxPlayers, duration, venue, equipment, isDoubles, hasMultipleSets, numberOfSets } = req.body;
     const user = (req as any).user;
 
     const sportGame = await SportGame.findById(id);
@@ -282,6 +284,20 @@ router.put('/sportgames/:id', authenticate, adminOnly, upload.single('image'), a
       if (isDoublesBoolean !== sportGame.isDoubles) {
         oldValues.isDoubles = sportGame.isDoubles;
         updateData.isDoubles = isDoublesBoolean;
+      }
+    }
+    if (hasMultipleSets !== undefined) {
+      const hasMultipleSetsBoolean = hasMultipleSets === 'true' || hasMultipleSets === true;
+      if (hasMultipleSetsBoolean !== sportGame.hasMultipleSets) {
+        oldValues.hasMultipleSets = sportGame.hasMultipleSets;
+        updateData.hasMultipleSets = hasMultipleSetsBoolean;
+      }
+    }
+    if (numberOfSets !== undefined) {
+      const numberOfSetsNumber = parseInt(numberOfSets);
+      if (numberOfSetsNumber !== sportGame.numberOfSets) {
+        oldValues.numberOfSets = sportGame.numberOfSets;
+        updateData.numberOfSets = numberOfSetsNumber;
       }
     }
 

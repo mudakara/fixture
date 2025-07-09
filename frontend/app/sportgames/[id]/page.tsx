@@ -248,6 +248,26 @@ function SportGameDetailContent({ id }: { id: string }) {
                     </ul>
                   </div>
                 )}
+
+                {/* Format */}
+                <div>
+                  <h3 className="text-sm font-medium text-gray-700">Format</h3>
+                  <div className="mt-2 flex items-center space-x-2">
+                    {sportGame.isDoubles && (
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                        Doubles
+                      </span>
+                    )}
+                    {sportGame.hasMultipleSets && (
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
+                        {sportGame.numberOfSets} Sets
+                      </span>
+                    )}
+                    {!sportGame.isDoubles && !sportGame.hasMultipleSets && (
+                      <span className="text-gray-600">Standard</span>
+                    )}
+                  </div>
+                </div>
               </div>
 
               {/* Rules */}
