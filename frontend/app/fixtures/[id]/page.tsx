@@ -621,8 +621,18 @@ function FixtureDetailContent({ params }: { params: Promise<Params> }) {
     }
 
     return (
-      <div className="overflow-x-auto pb-8 bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl p-6">
-        <div className="relative" style={{ minHeight: `${totalHeight + 100}px` }}>
+      <div 
+        className="overflow-x-auto pb-8 bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl p-6" 
+        id="knockout-bracket"
+        style={{
+          '@media print': {
+            overflow: 'visible',
+            background: 'white',
+            padding: 0
+          }
+        } as any}
+      >
+        <div className="relative print-bracket-container" style={{ minHeight: `${totalHeight + 100}px` }}>
           {Object.entries(roundMatches).map(([round, roundMatchList], roundIndex) => {
             const roundNumber = parseInt(round);
             const matchesInThisRound = roundMatchList.length;
@@ -1085,11 +1095,122 @@ function FixtureDetailContent({ params }: { params: Promise<Params> }) {
 
   return (
     <div className="min-h-screen bg-gray-100">
-      <Header />
-      <div className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
+      <style jsx global>{`
+        @media print {
+          @page {
+            size: A4 landscape;
+            margin: 10mm;
+          }
+          
+          /* Force white background and black text */
+          * {
+            background: white !important;
+            color: black !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+          
+          /* Hide all elements with print-hide class */
+          .print-hide {
+            display: none !important;
+          }
+          
+          /* Show print header */
+          .print-header {
+            display: block !important;
+            margin-bottom: 20px !important;
+            page-break-after: avoid !important;
+          }
+          
+          /* Main container adjustments */
+          body {
+            margin: 0 !important;
+            padding: 0 !important;
+          }
+          
+          .max-w-7xl {
+            max-width: 100% !important;
+            margin: 0 !important;
+            padding: 0 !important;
+          }
+          
+          /* Bracket specific styling */
+          #knockout-bracket {
+            overflow: visible !important;
+            background: white !important;
+            padding: 10px !important;
+            width: 100% !important;
+            transform: scale(0.85);
+            transform-origin: top left;
+            page-break-inside: auto !important;
+          }
+          
+          /* Tournament bracket container */
+          #knockout-bracket > div {
+            background: white !important;
+          }
+          
+          /* Match cards - ensure they're visible */
+          #knockout-bracket .bg-white {
+            border: 1px solid #000 !important;
+            box-shadow: none !important;
+            page-break-inside: avoid !important;
+            background: white !important;
+          }
+          
+          /* Winner highlighting */
+          #knockout-bracket .bg-green-100 {
+            background-color: #e0e0e0 !important;
+            border: 2px solid #000 !important;
+          }
+          
+          /* Champion card */
+          #knockout-bracket .border-yellow-400 {
+            border: 3px solid #000 !important;
+            background: #f0f0f0 !important;
+          }
+          
+          /* Connection lines */
+          #knockout-bracket div[style*="background-color: rgb(16, 185, 129)"] {
+            background-color: #000 !important;
+          }
+          
+          #knockout-bracket div[style*="background-color: rgb(156, 163, 175)"] {
+            background-color: #666 !important;
+          }
+          
+          /* Hide interactive elements */
+          button {
+            display: none !important;
+          }
+          
+          /* Round headers */
+          h3 {
+            color: #000 !important;
+            font-weight: bold !important;
+            page-break-after: avoid !important;
+          }
+          
+          /* Ensure text is readable */
+          .text-gray-900, .text-gray-800, .text-gray-700, .text-gray-600, .text-gray-500 {
+            color: #000 !important;
+          }
+          
+          /* For very large tournaments */
+          @media (min-width: 250mm) {
+            #knockout-bracket {
+              transform: scale(0.7) !important;
+            }
+          }
+        }
+      `}</style>
+      <div className="print-hide">
+        <Header />
+      </div>
+      <div className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8 print:py-0">
         <div className="px-4 py-6 sm:px-0">
           {/* Header */}
-          <div className="mb-6">
+          <div className="mb-6 print-hide">
             <Link href="/fixtures" className="text-indigo-600 hover:text-indigo-900 mb-2 inline-block">
               ← Back to Fixtures
             </Link>
@@ -1119,7 +1240,7 @@ function FixtureDetailContent({ params }: { params: Promise<Params> }) {
           </div>
 
           {/* Fixture Info */}
-          <div className="bg-white shadow rounded-lg p-6 mb-6">
+          <div className="bg-white shadow rounded-lg p-6 mb-6 print-hide">
             <h2 className="text-lg font-medium text-gray-900 mb-4">Fixture Information</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               <div>
@@ -1159,7 +1280,7 @@ function FixtureDetailContent({ params }: { params: Promise<Params> }) {
           </div>
 
           {/* Participants */}
-          <div className="bg-white shadow rounded-lg p-6 mb-6">
+          <div className="bg-white shadow rounded-lg p-6 mb-6 print-hide">
             <h2 className="text-lg font-medium text-gray-900 mb-4">Participants</h2>
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
               {participants?.map((participant) => (
@@ -1172,7 +1293,18 @@ function FixtureDetailContent({ params }: { params: Promise<Params> }) {
 
           {/* Matches/Bracket */}
           <div className="bg-white shadow rounded-lg p-6">
-            <div className="flex justify-between items-center mb-4">
+            {/* Print header - only visible during print */}
+            <div className="print-header" style={{ display: 'none' }}>
+              <h1 className="text-2xl font-bold text-gray-900 text-center">{fixture.name}</h1>
+              <p className="text-lg text-gray-700 text-center mt-2">
+                {fixture.eventId.name} - {fixture.sportGameId.title}
+              </p>
+              <p className="text-sm text-gray-600 text-center mt-1">
+                {formatDate(fixture.startDate)}
+              </p>
+            </div>
+            
+            <div className="flex justify-between items-center mb-4 print-hide">
               <h2 className="text-lg font-medium text-gray-900">
                 {fixture.format === 'knockout' ? 'Tournament Bracket' : 'Matches'}
               </h2>
@@ -1181,12 +1313,27 @@ function FixtureDetailContent({ params }: { params: Promise<Params> }) {
                 {isSuperAdmin && fixture.format === 'knockout' && fixture.participantType === 'team' && !hasPlayedMatches && (
                   <button
                     onClick={handleRandomize}
-                    className="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 flex items-center space-x-2"
+                    className="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 flex items-center space-x-2 print:hidden"
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                     </svg>
                     <span>Randomize Bracket</span>
+                  </button>
+                )}
+                {/* Print button for knockout fixtures */}
+                {fixture.format === 'knockout' && (
+                  <button
+                    onClick={() => window.print()}
+                    className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 flex items-center space-x-2 print:hidden"
+                    title="Print tournament bracket"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
+                        d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" 
+                      />
+                    </svg>
+                    <span>Print</span>
                   </button>
                 )}
                 {fixture.format === 'knockout' && (
@@ -1220,7 +1367,7 @@ function FixtureDetailContent({ params }: { params: Promise<Params> }) {
             
             {fixture.format === 'knockout' ? (
               <div className="relative">
-                <div className="absolute top-0 right-0 text-xs text-gray-500 bg-gray-50 px-3 py-1 rounded">
+                <div className="absolute top-0 right-0 text-xs text-gray-500 bg-gray-50 px-3 py-1 rounded print:hidden">
                   Scroll horizontally to view all rounds →
                 </div>
                 {renderKnockoutBracket()}
@@ -1232,7 +1379,7 @@ function FixtureDetailContent({ params }: { params: Promise<Params> }) {
 
       {/* Update Match Modal */}
       {showUpdateModal && selectedMatch && (
-        <div className="fixed inset-0 bg-gray-500 bg-opacity-75 flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-gray-500 bg-opacity-75 flex items-center justify-center z-50 print:hidden">
           <div className="bg-white rounded-lg p-6 max-w-md w-full">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Update Match</h3>
             
