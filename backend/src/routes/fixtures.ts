@@ -1069,6 +1069,71 @@ router.put('/:fixtureId/matches/:matchId', authenticate, canManageFixtures, asyn
   }
 });
 
+// Update match participants (for drag and drop editing)
+router.put('/:fixtureId/matches/:matchId/participants', authenticate, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { fixtureId, matchId } = req.params;
+    const { homeParticipant, awayParticipant } = req.body;
+    const user = (req as any).user;
+
+    // Check if user is super admin
+    if (user?.role !== 'super_admin') {
+      res.status(403).json({ error: 'Only super admins can edit match participants' });
+      return;
+    }
+
+    // Find the match
+    const match = await Match.findOne({ _id: matchId, fixtureId });
+    if (!match) {
+      res.status(404).json({ error: 'Match not found' });
+      return;
+    }
+
+    // Update participants
+    if (homeParticipant !== undefined) {
+      match.homeParticipant = homeParticipant;
+    }
+    if (awayParticipant !== undefined) {
+      match.awayParticipant = awayParticipant;
+    }
+
+    // Clear scores and winner if participants changed
+    if (homeParticipant !== undefined || awayParticipant !== undefined) {
+      match.homeScore = undefined;
+      match.awayScore = undefined;
+      match.winner = undefined;
+      match.loser = undefined;
+      match.status = 'scheduled';
+    }
+
+    await match.save();
+
+    // Create audit log
+    await AuditLog.create({
+      userId: user.userId,
+      action: 'update',
+      resource: 'match',
+      resourceId: matchId,
+      details: {
+        field: 'participants',
+        fixtureId,
+        homeParticipant,
+        awayParticipant
+      }
+    });
+
+    // Populate and return the updated match
+    const updatedMatch = await Match.findById(matchId)
+      .populate('homeParticipant', 'name email displayName')
+      .populate('awayParticipant', 'name email displayName');
+
+    res.json({ success: true, match: updatedMatch });
+  } catch (error: any) {
+    logger.error('Error updating match participants:', error);
+    res.status(500).json({ error: 'Failed to update match participants' });
+  }
+});
+
 // Update match partners (for doubles)
 router.put('/:fixtureId/matches/:matchId/partners', authenticate, canManageFixtures, async (req: Request, res: Response): Promise<void> => {
   try {

@@ -8,6 +8,12 @@ import { useEffect, useState } from 'react';
 import { use } from 'react';
 import axios from 'axios';
 import Link from 'next/link';
+import dynamic from 'next/dynamic';
+
+const EditableKnockoutBracket = dynamic(
+  () => import('./EditableKnockoutBracket'),
+  { ssr: false }
+);
 
 interface Params {
   id: string;
@@ -100,6 +106,7 @@ function FixtureDetailContent({ params }: { params: Promise<Params> }) {
     homePartner: '',
     awayPartner: ''
   });
+  const [isEditMode, setIsEditMode] = useState(false);
 
   const canManageFixtures = user?.role === 'super_admin' || user?.role === 'admin' || user?.role === 'captain' || user?.role === 'vicecaptain';
   const isSuperAdmin = user?.role === 'super_admin';
@@ -298,6 +305,36 @@ function FixtureDetailContent({ params }: { params: Promise<Params> }) {
       fetchFixtureDetails(); // Refresh data
     } catch (err: any) {
       alert(err.response?.data?.error || 'Failed to update match');
+    }
+  };
+
+  const handleMatchParticipantUpdate = async (matchId: string, updates: any) => {
+    if (!fixture) return;
+
+    try {
+      const response = await axios.put(
+        `${process.env.NEXT_PUBLIC_API_URL}/fixtures/${fixture._id}/matches/${matchId}/participants`,
+        updates,
+        { withCredentials: true }
+      );
+
+      if (response.data.success) {
+        // Update local state immediately for better UX
+        setMatches(prevMatches => 
+          prevMatches.map(match => 
+            match._id === matchId 
+              ? { ...match, ...response.data.match }
+              : match
+          )
+        );
+        
+        // Refresh full data in background
+        fetchFixtureDetails();
+      }
+    } catch (err: any) {
+      alert(err.response?.data?.error || 'Failed to update match participants');
+      // Refresh to revert changes
+      fetchFixtureDetails();
     }
   };
 
@@ -1355,6 +1392,22 @@ function FixtureDetailContent({ params }: { params: Promise<Params> }) {
                     <span>Randomize Bracket</span>
                   </button>
                 )}
+                {/* Edit Fixture button for super admin on player knockout fixtures */}
+                {isSuperAdmin && fixture.format === 'knockout' && fixture.participantType === 'player' && (
+                  <button
+                    onClick={() => setIsEditMode(!isEditMode)}
+                    className={`px-4 py-2 ${isEditMode ? 'bg-red-600 hover:bg-red-700' : 'bg-indigo-600 hover:bg-indigo-700'} text-white rounded-md flex items-center space-x-2 print:hidden transition-colors`}
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      {isEditMode ? (
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      ) : (
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                      )}
+                    </svg>
+                    <span>{isEditMode ? 'Cancel Edit' : 'Edit Fixture'}</span>
+                  </button>
+                )}
                 {/* Print button for knockout fixtures */}
                 {fixture.format === 'knockout' && (
                   <button
@@ -1414,10 +1467,23 @@ function FixtureDetailContent({ params }: { params: Promise<Params> }) {
             
             {fixture.format === 'knockout' ? (
               <div className="relative">
-                <div className="absolute top-0 right-0 text-xs text-gray-500 bg-gray-50 px-3 py-1 rounded print:hidden">
-                  Scroll horizontally to view all rounds →
-                </div>
-                {renderKnockoutBracket()}
+                {!isEditMode && (
+                  <div className="absolute top-0 right-0 text-xs text-gray-500 bg-gray-50 px-3 py-1 rounded print:hidden">
+                    Scroll horizontally to view all rounds →
+                  </div>
+                )}
+                {isEditMode ? (
+                  <EditableKnockoutBracket
+                    matches={matches}
+                    participants={participants}
+                    onMatchUpdate={handleMatchParticipantUpdate}
+                    fixture={fixture}
+                    teamMap={teamMap}
+                    getPlayerTeamName={getPlayerTeamName}
+                  />
+                ) : (
+                  renderKnockoutBracket()
+                )}
               </div>
             ) : renderRoundRobinMatches()}
           </div>
