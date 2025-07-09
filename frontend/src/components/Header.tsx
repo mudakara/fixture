@@ -100,6 +100,14 @@ export default function Header() {
       ]
     },
     { name: 'Fixtures', href: '/fixtures', roles: ['super_admin', 'admin', 'captain', 'vicecaptain'] },
+    { 
+      name: 'Scorecard', 
+      roles: ['super_admin', 'admin', 'captain', 'vicecaptain', 'player'],
+      submenu: [
+        { name: 'Team Points', href: '/scorecard/teams', roles: ['super_admin', 'admin', 'captain', 'vicecaptain', 'player'] },
+        { name: 'Player Points', href: '/scorecard/players', roles: ['super_admin', 'admin', 'captain', 'vicecaptain', 'player'] }
+      ]
+    },
     { name: 'Reports', href: '/reports', roles: ['super_admin', 'admin'] },
     { name: 'Roles', href: '/roles', roles: ['super_admin'] },
   ];

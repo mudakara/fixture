@@ -25,6 +25,11 @@ interface SportGame {
   isDoubles?: boolean;
   hasMultipleSets?: boolean;
   numberOfSets?: number;
+  points?: {
+    first: number;
+    second: number;
+    third: number;
+  };
 }
 
 function EditSportGameContent({ id }: { id: string }) {
@@ -35,6 +40,7 @@ function EditSportGameContent({ id }: { id: string }) {
   const [error, setError] = useState<string | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [existingImage, setExistingImage] = useState<string | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -49,7 +55,12 @@ function EditSportGameContent({ id }: { id: string }) {
     isDoubles: false,
     hasMultipleSets: false,
     numberOfSets: '1',
-    image: null as File | null
+    image: null as File | null,
+    points: {
+      first: '',
+      second: '',
+      third: ''
+    }
   });
 
   // Check permissions
@@ -87,7 +98,12 @@ function EditSportGameContent({ id }: { id: string }) {
         isDoubles: sportGame.isDoubles || false,
         hasMultipleSets: sportGame.hasMultipleSets || false,
         numberOfSets: sportGame.numberOfSets?.toString() || '1',
-        image: null
+        image: null,
+        points: {
+          first: sportGame.points?.first?.toString() || '0',
+          second: sportGame.points?.second?.toString() || '0',
+          third: sportGame.points?.third?.toString() || '0'
+        }
       });
 
       // Set existing image
@@ -117,6 +133,16 @@ function EditSportGameContent({ id }: { id: string }) {
         [name]: value
       }));
     }
+  };
+
+  const handlePointsChange = (rank: 'first' | 'second' | 'third', value: string) => {
+    setFormData(prev => ({
+      ...prev,
+      points: {
+        ...prev.points,
+        [rank]: value
+      }
+    }));
   };
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -160,6 +186,14 @@ function EditSportGameContent({ id }: { id: string }) {
         formDataToSend.append('numberOfSets', formData.numberOfSets);
       }
       if (formData.image) formDataToSend.append('image', formData.image);
+      
+      // Add points
+      const pointsData = {
+        first: parseInt(formData.points.first) || 0,
+        second: parseInt(formData.points.second) || 0,
+        third: parseInt(formData.points.third) || 0
+      };
+      formDataToSend.append('points', JSON.stringify(pointsData));
 
       const response = await axios.put(
         `${process.env.NEXT_PUBLIC_API_URL}/sportgames/${id}`,
@@ -189,6 +223,45 @@ function EditSportGameContent({ id }: { id: string }) {
     }));
     setImagePreview(null);
     setExistingImage(null);
+  };
+
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+
+    const files = e.dataTransfer.files;
+    if (files && files.length > 0) {
+      const file = files[0];
+      if (file.type.startsWith('image/')) {
+        setFormData(prev => ({
+          ...prev,
+          image: file
+        }));
+        
+        // Create preview
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          setImagePreview(reader.result as string);
+        };
+        reader.readAsDataURL(file);
+      } else {
+        setError('Please upload an image file');
+        setTimeout(() => setError(null), 3000);
+      }
+    }
   };
 
   if (fetchLoading) {
@@ -406,6 +479,58 @@ function EditSportGameContent({ id }: { id: string }) {
                   )}
                 </div>
 
+                {/* Points Configuration */}
+                <div className="col-span-2">
+                  <h3 className="text-lg font-medium text-gray-900 mb-4">Points Configuration</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                      <label htmlFor="points-first" className="block text-sm font-medium text-gray-700">
+                        1st Place Points
+                      </label>
+                      <input
+                        type="number"
+                        id="points-first"
+                        min="0"
+                        value={formData.points.first}
+                        onChange={(e) => handlePointsChange('first', e.target.value)}
+                        className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-gray-900"
+                        placeholder="0"
+                      />
+                    </div>
+                    <div>
+                      <label htmlFor="points-second" className="block text-sm font-medium text-gray-700">
+                        2nd Place Points
+                      </label>
+                      <input
+                        type="number"
+                        id="points-second"
+                        min="0"
+                        value={formData.points.second}
+                        onChange={(e) => handlePointsChange('second', e.target.value)}
+                        className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-gray-900"
+                        placeholder="0"
+                      />
+                    </div>
+                    <div>
+                      <label htmlFor="points-third" className="block text-sm font-medium text-gray-700">
+                        3rd Place Points
+                      </label>
+                      <input
+                        type="number"
+                        id="points-third"
+                        min="0"
+                        value={formData.points.third}
+                        onChange={(e) => handlePointsChange('third', e.target.value)}
+                        className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-gray-900"
+                        placeholder="0"
+                      />
+                    </div>
+                  </div>
+                  <p className="mt-2 text-sm text-gray-500">
+                    Points awarded to teams based on their final ranking in the tournament
+                  </p>
+                </div>
+
                 {/* Duration */}
                 <div>
                   <label htmlFor="duration" className="block text-sm font-medium text-gray-700">
@@ -499,10 +624,19 @@ function EditSportGameContent({ id }: { id: string }) {
                         </button>
                       </div>
                     ) : (
-                      <div className="flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-md">
+                      <div 
+                        className={`flex justify-center px-6 pt-5 pb-6 border-2 border-dashed rounded-md transition-colors ${
+                          isDragging 
+                            ? 'border-indigo-500 bg-indigo-50' 
+                            : 'border-gray-300 hover:border-gray-400'
+                        }`}
+                        onDragOver={handleDragOver}
+                        onDragLeave={handleDragLeave}
+                        onDrop={handleDrop}
+                      >
                         <div className="space-y-1 text-center">
                           <svg
-                            className="mx-auto h-12 w-12 text-gray-400"
+                            className={`mx-auto h-12 w-12 ${isDragging ? 'text-indigo-500' : 'text-gray-400'}`}
                             stroke="currentColor"
                             fill="none"
                             viewBox="0 0 48 48"
@@ -532,7 +666,9 @@ function EditSportGameContent({ id }: { id: string }) {
                             </label>
                             <p className="pl-1">or drag and drop</p>
                           </div>
-                          <p className="text-xs text-gray-500">PNG, JPG, GIF up to 5MB</p>
+                          <p className="text-xs text-gray-500">
+                            {isDragging ? 'Drop image here' : 'PNG, JPG, GIF up to 5MB'}
+                          </p>
                         </div>
                       </div>
                     )}

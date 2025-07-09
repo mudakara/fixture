@@ -35,6 +35,8 @@ interface Fixture {
     type: string;
     category: string;
     isDoubles?: boolean;
+    hasMultipleSets?: boolean;
+    numberOfSets?: number;
   };
   format: 'knockout' | 'roundrobin';
   participantType: 'player' | 'team';
@@ -43,6 +45,11 @@ interface Fixture {
   startDate: string;
   endDate?: string;
   settings: any;
+  winners?: {
+    first?: { _id: string; name?: string; displayName?: string; };
+    second?: { _id: string; name?: string; displayName?: string; };
+    third?: { _id: string; name?: string; displayName?: string; };
+  };
   createdBy: {
     _id: string;
     name: string;
@@ -70,6 +77,14 @@ interface Match {
   notes?: string;
   nextMatchId?: string;
   previousMatchIds?: string[];
+  isThirdPlaceMatch?: boolean;
+  scoreDetails?: {
+    sets?: Array<{
+      setNumber: number;
+      homeScore: number;
+      awayScore: number;
+    }>;
+  };
 }
 
 interface Participant {
@@ -109,6 +124,12 @@ function FixtureDetailContent({ params }: { params: Promise<Params> }) {
     winner: '' as string // Will store participant ID
   });
   const [isEditMode, setIsEditMode] = useState(false);
+  const [winners, setWinners] = useState({
+    first: '',
+    second: '',
+    third: ''
+  });
+  const [isSavingWinners, setIsSavingWinners] = useState(false);
 
   const canManageFixtures = user?.role === 'super_admin' || user?.role === 'admin' || user?.role === 'captain' || user?.role === 'vicecaptain';
   const isSuperAdmin = user?.role === 'super_admin';
@@ -138,6 +159,58 @@ function FixtureDetailContent({ params }: { params: Promise<Params> }) {
   useEffect(() => {
     fetchFixtureDetails();
   }, [resolvedParams.id]);
+  
+  // Check if tournament has reached semi-finals
+  const hasReachedSemiFinals = () => {
+    if (fixture?.format !== 'knockout') return false;
+    
+    // Find the highest round number
+    const maxRound = Math.max(...matches.map(m => m.round), 0);
+    
+    // Semi-finals is typically round maxRound - 1
+    // Check if any semi-final matches have been played
+    const semiFinalMatches = matches.filter(m => m.round === maxRound - 1);
+    return semiFinalMatches.some(m => m.status === 'completed' || m.status === 'in_progress');
+  };
+  
+  // Load saved winners or auto-populate from final match
+  useEffect(() => {
+    if (fixture?.format === 'knockout') {
+      // First check if winners are already saved
+      if (fixture.winners) {
+        setWinners({
+          first: fixture.winners.first?._id || '',
+          second: fixture.winners.second?._id || '',
+          third: fixture.winners.third?._id || ''
+        });
+      } else if (matches.length > 0) {
+        // Auto-populate from matches if no winners saved
+        const maxRound = Math.max(...matches.map(m => m.round));
+        const finalMatch = matches.find(m => m.round === maxRound && !m.isThirdPlaceMatch);
+        
+        if (finalMatch && finalMatch.status === 'completed' && finalMatch.winner) {
+          // Set 1st place
+          if (finalMatch.winner._id) {
+            setWinners(prev => ({ ...prev, first: finalMatch.winner._id }));
+          }
+          
+          // Set 2nd place (loser of final)
+          const secondPlace = finalMatch.homeParticipant?._id === finalMatch.winner._id
+            ? finalMatch.awayParticipant?._id
+            : finalMatch.homeParticipant?._id;
+          if (secondPlace) {
+            setWinners(prev => ({ ...prev, second: secondPlace }));
+          }
+        }
+        
+        // Check for 3rd place match
+        const thirdPlaceMatch = matches.find(m => m.isThirdPlaceMatch && m.status === 'completed');
+        if (thirdPlaceMatch && thirdPlaceMatch.winner?._id) {
+          setWinners(prev => ({ ...prev, third: thirdPlaceMatch.winner._id }));
+        }
+      }
+    }
+  }, [fixture, matches]);
 
   const fetchTeamData = async (eventId: string, matches: Match[]) => {
     try {
@@ -569,6 +642,32 @@ function FixtureDetailContent({ params }: { params: Promise<Params> }) {
       }
     } catch (err: any) {
       alert(err.response?.data?.error || 'Failed to randomize bracket');
+    }
+  };
+  
+  const handleSaveWinners = async () => {
+    if (!fixture) return;
+    
+    setIsSavingWinners(true);
+    try {
+      const response = await axios.put(
+        `${process.env.NEXT_PUBLIC_API_URL}/fixtures/${fixture._id}/winners`,
+        {
+          first: winners.first,
+          second: winners.second,
+          third: winners.third
+        },
+        { withCredentials: true }
+      );
+      
+      if (response.data.success) {
+        alert('Winners saved successfully!');
+        fetchFixtureDetails(); // Refresh data
+      }
+    } catch (err: any) {
+      alert(err.response?.data?.error || 'Failed to save winners');
+    } finally {
+      setIsSavingWinners(false);
     }
   };
 
@@ -1412,6 +1511,103 @@ function FixtureDetailContent({ params }: { params: Promise<Params> }) {
               ))}
             </div>
           </div>
+          
+          {/* Winners Section - Only for knockout tournaments */}
+          {fixture?.format === 'knockout' && hasReachedSemiFinals() && (
+            <div className="bg-white shadow rounded-lg p-6 mb-6 print-hide">
+              <h2 className="text-lg font-medium text-gray-900 mb-4">Winners</h2>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {/* 1st Place */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <span className="inline-flex items-center">
+                      <span className="text-2xl mr-2">🥇</span>
+                      1st Place
+                    </span>
+                  </label>
+                  <select
+                    value={winners.first}
+                    onChange={(e) => setWinners(prev => ({ ...prev, first: e.target.value }))}
+                    disabled={!(user?.role === 'super_admin' || user?.role === 'admin')}
+                    className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-gray-900 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                  >
+                    <option value="">Select winner</option>
+                    {participants?.map((participant) => (
+                      <option key={participant._id} value={participant._id}>
+                        {participant.name || participant.displayName}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                
+                {/* 2nd Place */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <span className="inline-flex items-center">
+                      <span className="text-2xl mr-2">🥈</span>
+                      2nd Place
+                    </span>
+                  </label>
+                  <select
+                    value={winners.second}
+                    onChange={(e) => setWinners(prev => ({ ...prev, second: e.target.value }))}
+                    disabled={!(user?.role === 'super_admin' || user?.role === 'admin')}
+                    className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-gray-900 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                  >
+                    <option value="">Select runner-up</option>
+                    {participants?.filter(p => p._id !== winners.first).map((participant) => (
+                      <option key={participant._id} value={participant._id}>
+                        {participant.name || participant.displayName}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                
+                {/* 3rd Place */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <span className="inline-flex items-center">
+                      <span className="text-2xl mr-2">🥉</span>
+                      3rd Place
+                    </span>
+                  </label>
+                  <select
+                    value={winners.third}
+                    onChange={(e) => setWinners(prev => ({ ...prev, third: e.target.value }))}
+                    disabled={!(user?.role === 'super_admin' || user?.role === 'admin')}
+                    className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-gray-900 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                  >
+                    <option value="">Select 3rd place</option>
+                    {participants?.filter(p => p._id !== winners.first && p._id !== winners.second).map((participant) => (
+                      <option key={participant._id} value={participant._id}>
+                        {participant.name || participant.displayName}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              
+              {/* Save button - only for admin/super admin */}
+              {(user?.role === 'super_admin' || user?.role === 'admin') && (
+                <div className="mt-4 flex justify-end">
+                  <button
+                    onClick={handleSaveWinners}
+                    disabled={isSavingWinners || !winners.first || !winners.second}
+                    className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isSavingWinners ? 'Saving...' : 'Save Winners'}
+                  </button>
+                </div>
+              )}
+              
+              {/* Info message for non-admins */}
+              {!(user?.role === 'super_admin' || user?.role === 'admin') && (
+                <p className="mt-4 text-sm text-gray-500">
+                  Winners can only be edited by administrators.
+                </p>
+              )}
+            </div>
+          )}
 
           {/* Matches/Bracket */}
           <div className="bg-white shadow rounded-lg p-6">

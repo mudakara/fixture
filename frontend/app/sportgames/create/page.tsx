@@ -14,6 +14,7 @@ function CreateSportGameContent() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -28,7 +29,12 @@ function CreateSportGameContent() {
     isDoubles: false,
     hasMultipleSets: false,
     numberOfSets: '1',
-    image: null as File | null
+    image: null as File | null,
+    points: {
+      first: '',
+      second: '',
+      third: ''
+    }
   });
 
   // Check permissions
@@ -53,6 +59,16 @@ function CreateSportGameContent() {
         [name]: value
       }));
     }
+  };
+
+  const handlePointsChange = (rank: 'first' | 'second' | 'third', value: string) => {
+    setFormData(prev => ({
+      ...prev,
+      points: {
+        ...prev.points,
+        [rank]: value
+      }
+    }));
   };
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -96,6 +112,14 @@ function CreateSportGameContent() {
         formDataToSend.append('numberOfSets', formData.numberOfSets);
       }
       if (formData.image) formDataToSend.append('image', formData.image);
+      
+      // Add points
+      const pointsData = {
+        first: parseInt(formData.points.first) || 0,
+        second: parseInt(formData.points.second) || 0,
+        third: parseInt(formData.points.third) || 0
+      };
+      formDataToSend.append('points', JSON.stringify(pointsData));
 
       const response = await axios.post(
         `${process.env.NEXT_PUBLIC_API_URL}/sportgames`,
@@ -124,6 +148,45 @@ function CreateSportGameContent() {
       image: null
     }));
     setImagePreview(null);
+  };
+
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+
+    const files = e.dataTransfer.files;
+    if (files && files.length > 0) {
+      const file = files[0];
+      if (file.type.startsWith('image/')) {
+        setFormData(prev => ({
+          ...prev,
+          image: file
+        }));
+        
+        // Create preview
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          setImagePreview(reader.result as string);
+        };
+        reader.readAsDataURL(file);
+      } else {
+        setError('Please upload an image file');
+        setTimeout(() => setError(null), 3000);
+      }
+    }
   };
 
   return (
@@ -315,6 +378,58 @@ function CreateSportGameContent() {
                   )}
                 </div>
 
+                {/* Points Configuration */}
+                <div className="col-span-2">
+                  <h3 className="text-lg font-medium text-gray-900 mb-4">Points Configuration</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                      <label htmlFor="points-first" className="block text-sm font-medium text-gray-700">
+                        1st Place Points
+                      </label>
+                      <input
+                        type="number"
+                        id="points-first"
+                        min="0"
+                        value={formData.points.first}
+                        onChange={(e) => handlePointsChange('first', e.target.value)}
+                        className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-gray-900"
+                        placeholder="0"
+                      />
+                    </div>
+                    <div>
+                      <label htmlFor="points-second" className="block text-sm font-medium text-gray-700">
+                        2nd Place Points
+                      </label>
+                      <input
+                        type="number"
+                        id="points-second"
+                        min="0"
+                        value={formData.points.second}
+                        onChange={(e) => handlePointsChange('second', e.target.value)}
+                        className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-gray-900"
+                        placeholder="0"
+                      />
+                    </div>
+                    <div>
+                      <label htmlFor="points-third" className="block text-sm font-medium text-gray-700">
+                        3rd Place Points
+                      </label>
+                      <input
+                        type="number"
+                        id="points-third"
+                        min="0"
+                        value={formData.points.third}
+                        onChange={(e) => handlePointsChange('third', e.target.value)}
+                        className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-gray-900"
+                        placeholder="0"
+                      />
+                    </div>
+                  </div>
+                  <p className="mt-2 text-sm text-gray-500">
+                    Points awarded to teams based on their final ranking in the tournament
+                  </p>
+                </div>
+
                 {/* Duration */}
                 <div>
                   <label htmlFor="duration" className="block text-sm font-medium text-gray-700">
@@ -408,10 +523,19 @@ function CreateSportGameContent() {
                         </button>
                       </div>
                     ) : (
-                      <div className="flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-md">
+                      <div 
+                        className={`flex justify-center px-6 pt-5 pb-6 border-2 border-dashed rounded-md transition-colors ${
+                          isDragging 
+                            ? 'border-indigo-500 bg-indigo-50' 
+                            : 'border-gray-300 hover:border-gray-400'
+                        }`}
+                        onDragOver={handleDragOver}
+                        onDragLeave={handleDragLeave}
+                        onDrop={handleDrop}
+                      >
                         <div className="space-y-1 text-center">
                           <svg
-                            className="mx-auto h-12 w-12 text-gray-400"
+                            className={`mx-auto h-12 w-12 ${isDragging ? 'text-indigo-500' : 'text-gray-400'}`}
                             stroke="currentColor"
                             fill="none"
                             viewBox="0 0 48 48"
@@ -441,7 +565,9 @@ function CreateSportGameContent() {
                             </label>
                             <p className="pl-1">or drag and drop</p>
                           </div>
-                          <p className="text-xs text-gray-500">PNG, JPG, GIF up to 5MB</p>
+                          <p className="text-xs text-gray-500">
+                            {isDragging ? 'Drop image here' : 'PNG, JPG, GIF up to 5MB'}
+                          </p>
                         </div>
                       </div>
                     )}

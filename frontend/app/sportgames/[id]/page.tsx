@@ -23,6 +23,14 @@ interface SportGame {
   venue?: string;
   equipment?: string[];
   image?: string;
+  isDoubles?: boolean;
+  hasMultipleSets?: boolean;
+  numberOfSets?: number;
+  points?: {
+    first: number;
+    second: number;
+    third: number;
+  };
   createdBy: {
     _id: string;
     name: string;
@@ -268,6 +276,24 @@ function SportGameDetailContent({ id }: { id: string }) {
                     )}
                   </div>
                 </div>
+
+                {/* Points */}
+                {(sportGame.points?.first || sportGame.points?.second || sportGame.points?.third) && (
+                  <div>
+                    <h3 className="text-sm font-medium text-gray-700">Points</h3>
+                    <div className="mt-2 space-y-1">
+                      {sportGame.points.first > 0 && (
+                        <p className="text-gray-600">1st Place: {sportGame.points.first} points</p>
+                      )}
+                      {sportGame.points.second > 0 && (
+                        <p className="text-gray-600">2nd Place: {sportGame.points.second} points</p>
+                      )}
+                      {sportGame.points.third > 0 && (
+                        <p className="text-gray-600">3rd Place: {sportGame.points.third} points</p>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Rules */}

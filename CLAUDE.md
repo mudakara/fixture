@@ -146,6 +146,11 @@ npm run dev         # Start both frontend (port 3500) and backend (port 3501)
   isDoubles?: boolean // For doubles tournaments
   hasMultipleSets?: boolean // For activities with multiple sets
   numberOfSets?: number // Number of sets (1-5)
+  points?: {
+    first: number  // Points for 1st place
+    second: number // Points for 2nd place
+    third: number  // Points for 3rd place
+  }
   createdBy: ObjectId (User)
   isActive: boolean
 }
@@ -226,6 +231,46 @@ npm run dev         # Start both frontend (port 3500) and backend (port 3501)
 
 ### Technical Implementation Details
 
+#### Fixture Status Management
+1. **Automatic Status Updates**:
+   - Fixtures start with `status: 'scheduled'` on creation
+   - Changes to `status: 'in_progress'` when first match is played
+   - Automatically updates to `status: 'completed'` when all matches finish
+   - Scorecard only processes fixtures with `status: 'completed'`
+   - Status validation includes both 'completed' and 'walkover' matches
+
+2. **Match Completion Logic**:
+   ```typescript
+   // In match update endpoint
+   if (status === 'completed') {
+     const fixture = await Fixture.findById(fixtureId);
+     const allMatches = await Match.find({ fixtureId });
+     const allCompleted = allMatches.every(m => 
+       m.status === 'completed' || m.status === 'walkover'
+     );
+     if (allCompleted) {
+       fixture.status = 'completed';
+     }
+   }
+   ```
+
+#### Drag & Drop Implementation
+1. **State Management**:
+   - `isDragging` state tracks active drag operations
+   - Prevents default browser behavior on drag events
+   - Validates file types before processing
+
+2. **Event Handlers**:
+   - `handleDragOver`: Prevents default, sets dragging state
+   - `handleDragLeave`: Resets dragging state
+   - `handleDrop`: Processes files, creates preview
+   - File validation ensures only images are accepted
+
+3. **Visual Feedback**:
+   - Dynamic className based on isDragging state
+   - Smooth transitions with `transition-colors` class
+   - Color changes for border, background, and icons
+
 #### Fixture System Architecture
 
 1. **Same-Team Match Avoidance Algorithm**:
@@ -290,6 +335,8 @@ npm run dev         # Start both frontend (port 3500) and backend (port 3501)
    - Create and manage sports/games activities
    - Categorize by type (sport or game)
    - Define rules, equipment, player limits, and duration
+   - Configure points for 1st, 2nd, and 3rd place rankings
+   - Support for doubles format and multiple sets
    - Admin and super admin access only
    - Activity library for fixture creation
 
@@ -361,6 +408,15 @@ npm run dev         # Start both frontend (port 3500) and backend (port 3501)
     - Default super admin: admin@matchmakerpro.com / changethispassword (local auth)
     - Session management with Redux
 
+11. **Team Points Scorecard System**
+    - Automatic calculation of team rankings based on tournament results
+    - Points awarded based on activity configuration (1st, 2nd, 3rd place)
+    - Comprehensive leaderboard showing total points and breakdown
+    - Event-based filtering for focused competition tracking
+    - Visual medals and rankings for top performing teams
+    - Support for both knockout and round-robin tournament formats
+    - Points reference showing all activities with their point values
+
 ## API Endpoints
 
 ### Authentication
@@ -425,6 +481,11 @@ npm run dev         # Start both frontend (port 3500) and backend (port 3501)
 - `PUT /api/permissions/:role` - Update role permissions
 - `POST /api/permissions/check` - Check user permission
 
+### Scorecard
+- `GET /api/scorecard/teams` - Get team points scorecard
+  - Query: `?eventId=xxx` (optional, filter by event)
+  - Returns: Team rankings with total points and activity breakdown
+
 ## Important Conventions
 
 1. **Next.js 15 Compatibility** - Use `React.use()` for async params in page components
@@ -449,6 +510,9 @@ npm run dev         # Start both frontend (port 3500) and backend (port 3501)
 20. **Team Population** - Frontend fetches teams separately when teamId is not populated in responses
 21. **Match Generation** - Knockout brackets use proper tournament structure with bye handling
 22. **Bracket Size Calculation** - Uses next power of 2 to ensure balanced tournament tree
+23. **Fixture Status Flow** - scheduled → in_progress → completed (automatic transitions)
+24. **Points Display** - Always show points in prominent cards with medal emojis
+25. **Image Upload** - Support both click-to-upload and drag-and-drop with visual feedback
 
 ## Azure AD Configuration
 
@@ -491,10 +555,72 @@ Required API Permissions:
 23. **Print Styles Not Applying**: Use dangerouslySetInnerHTML for inline styles or global CSS
 24. **Browser Print Preview Issues**: Add delay before window.print() to ensure styles load
 25. **Bye Matches Showing as "Scheduled"**: Check for single participant and display "Bye Match" label
+26. **Team Scorecard Not Updating**: Ensure fixtures are marked as 'completed' when all matches finish
+27. **Turbopack HMR Errors**: Clear .next cache, restart dev servers, hard refresh browser
+28. **Drag & Drop Not Working**: Ensure all drag event handlers are properly attached with preventDefault()
 
 ## Recent Updates
 
-### v0.11 Updates (Latest)
+### v0.13 Updates (Latest)
+- **Team Scorecard System Fixes & Enhancements**:
+  - Fixed scorecard not updating by implementing automatic fixture status management
+  - Added logic to mark fixtures as 'completed' when all matches finish
+  - Set initial fixture status to 'scheduled' on creation
+  - Improved tournament ranking detection:
+    - Fixed final round calculation for knockout tournaments with byes
+    - Uses actual max round number instead of calculated value
+    - Better handling of third-place matches and semi-final losers
+  - Enhanced debugging with detailed logging throughout scorecard calculation
+  - Added debug information in API responses
+  
+- **Activity Cards UX Improvements**:
+  - Redesigned points display to be more prominent:
+    - Points now shown in a gray background card section
+    - Each place (1st, 2nd, 3rd) in its own colored box
+    - Larger emojis (text-2xl) with bold point values
+    - Added descriptive labels under each medal
+  - Converted Edit/Delete links to proper button components:
+    - Full-width buttons with icons (pencil for edit, trash for delete)
+    - Proper button styling with shadows and hover effects
+    - Clear visual separation with top border
+  
+- **Drag & Drop Image Upload**:
+  - Implemented full drag-and-drop functionality for activity create/edit pages
+  - Visual feedback during drag operations:
+    - Border changes to indigo with light background
+    - Icon color changes to indicate active drop zone
+    - Dynamic text updates from "PNG, JPG, GIF up to 5MB" to "Drop image here"
+  - File validation ensures only images are accepted
+  - Error handling with auto-clearing messages
+  - Smooth transitions with CSS animation
+
+### v0.12 Updates
+- **Team Points Scorecard System**:
+  - Added comprehensive points tracking for team competitions
+  - Backend implementation:
+    - Added `points` field to SportGame model with first, second, and third place values
+    - Created `/api/scorecard/teams` endpoint for calculating team rankings and points
+    - Automatic point calculation based on tournament results:
+      - Knockout: 1st = final winner, 2nd = runner-up, 3rd = third place match winner
+      - Round-robin: Rankings based on total points and wins
+    - Support for filtering by event
+  - Frontend features:
+    - Points configuration in activity creation/edit forms
+    - Team Points scorecard page at `/scorecard/teams`
+    - Real-time leaderboard with rankings and total points
+    - Detailed breakdown showing points earned from each activity
+    - Visual medals (🥇🥈🥉) for top 3 teams
+    - Points reference section showing all activities with their point values
+  - UI enhancements:
+    - Points display on activity cards and detail pages
+    - Event filter for team points view
+    - Interactive details button to view points breakdown
+    - Placeholder page for Player Points (coming soon)
+  - Menu structure:
+    - New "Scorecard" menu with submenus for Team Points and Player Points
+    - Accessible to all user roles
+
+### v0.11 Updates
 - **Multiple Sets Support for Activities**:
   - Added "How many Sets?" feature for sports/games activities
   - Backend changes:
@@ -732,6 +858,17 @@ Required API Permissions:
   - Fixed match linking algorithm for proper tournament tree structure
   - Added automatic advancement for walkover matches
   - Winners now properly advance to the correct position in next round
+- **Fixed Team Scorecard Not Updating**:
+  - Added automatic fixture status management
+  - Fixtures now properly transition from scheduled → in_progress → completed
+  - Fixed final round detection for tournaments with bye matches
+- **Enhanced Activity Cards UX**:
+  - Points display now uses prominent cards with colored backgrounds
+  - Edit/Delete converted to proper button components with icons
+- **Implemented Drag & Drop for Images**:
+  - Added full drag-and-drop support for activity create/edit pages
+  - Visual feedback during drag operations
+  - File type validation and error handling
 
 ### Fixture Management System
 - Created Fixture and Match models for tournament management

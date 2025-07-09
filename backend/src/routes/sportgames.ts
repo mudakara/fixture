@@ -57,7 +57,7 @@ const adminOnly = (req: Request, res: Response, next: Function) => {
 // Create a new sport/game
 router.post('/sportgames', authenticate, adminOnly, upload.single('image'), async (req: Request, res: Response): Promise<void> => {
   try {
-    const { title, description, type, category, rules, minPlayers, maxPlayers, duration, venue, equipment, isDoubles, hasMultipleSets, numberOfSets } = req.body;
+    const { title, description, type, category, rules, minPlayers, maxPlayers, duration, venue, equipment, isDoubles, hasMultipleSets, numberOfSets, points } = req.body;
     const user = (req as any).user;
 
     // Validate required fields
@@ -83,6 +83,21 @@ router.post('/sportgames', authenticate, adminOnly, upload.single('image'), asyn
       }
     }
 
+    // Parse points if provided
+    let pointsConfig = undefined;
+    if (points) {
+      if (typeof points === 'string') {
+        try {
+          pointsConfig = JSON.parse(points);
+        } catch (e) {
+          // If parsing fails, assume it's not JSON
+          pointsConfig = undefined;
+        }
+      } else if (typeof points === 'object') {
+        pointsConfig = points;
+      }
+    }
+
     // Create sport/game
     const sportGame = new SportGame({
       title,
@@ -98,6 +113,11 @@ router.post('/sportgames', authenticate, adminOnly, upload.single('image'), asyn
       isDoubles: isDoubles === 'true' || isDoubles === true,
       hasMultipleSets: hasMultipleSets === 'true' || hasMultipleSets === true,
       numberOfSets: numberOfSets ? parseInt(numberOfSets) : undefined,
+      points: pointsConfig || {
+        first: 0,
+        second: 0,
+        third: 0
+      },
       image: req.file ? `/uploads/sportgames/${req.file.filename}` : undefined,
       createdBy: user._id
     });
@@ -198,7 +218,7 @@ router.get('/sportgames/:id', authenticate, async (req: Request, res: Response):
 router.put('/sportgames/:id', authenticate, adminOnly, upload.single('image'), async (req: Request, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
-    const { title, description, type, category, rules, minPlayers, maxPlayers, duration, venue, equipment, isDoubles, hasMultipleSets, numberOfSets } = req.body;
+    const { title, description, type, category, rules, minPlayers, maxPlayers, duration, venue, equipment, isDoubles, hasMultipleSets, numberOfSets, points } = req.body;
     const user = (req as any).user;
 
     const sportGame = await SportGame.findById(id);
@@ -298,6 +318,23 @@ router.put('/sportgames/:id', authenticate, adminOnly, upload.single('image'), a
       if (numberOfSetsNumber !== sportGame.numberOfSets) {
         oldValues.numberOfSets = sportGame.numberOfSets;
         updateData.numberOfSets = numberOfSetsNumber;
+      }
+    }
+    if (points !== undefined) {
+      let pointsConfig;
+      if (typeof points === 'string') {
+        try {
+          pointsConfig = JSON.parse(points);
+        } catch (e) {
+          pointsConfig = undefined;
+        }
+      } else if (typeof points === 'object') {
+        pointsConfig = points;
+      }
+      
+      if (pointsConfig && JSON.stringify(pointsConfig) !== JSON.stringify(sportGame.points)) {
+        oldValues.points = sportGame.points;
+        updateData.points = pointsConfig;
       }
     }
 

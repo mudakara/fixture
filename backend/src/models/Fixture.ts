@@ -28,6 +28,11 @@ export interface IFixture extends Document {
     pointsForDraw?: number;
     pointsForLoss?: number;
   };
+  winners?: {
+    first?: mongoose.Types.ObjectId;
+    second?: mongoose.Types.ObjectId;
+    third?: mongoose.Types.ObjectId;
+  };
   createdBy: mongoose.Types.ObjectId;
   isActive: boolean;
   createdAt: Date;
@@ -127,6 +132,17 @@ const FixtureSchema = new Schema<IFixture>(
       pointsForLoss: {
         type: Number,
         default: 0
+      }
+    },
+    winners: {
+      first: {
+        type: Schema.Types.ObjectId
+      },
+      second: {
+        type: Schema.Types.ObjectId
+      },
+      third: {
+        type: Schema.Types.ObjectId
       }
     },
     createdBy: {

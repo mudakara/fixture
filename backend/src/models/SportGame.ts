@@ -15,6 +15,11 @@ export interface ISportGame extends Document {
   isDoubles?: boolean;
   hasMultipleSets?: boolean;
   numberOfSets?: number; // 1 to 5
+  points?: {
+    first: number;
+    second: number;
+    third: number;
+  };
   isActive: boolean;
   createdBy: mongoose.Types.ObjectId;
   createdAt: Date;
@@ -81,6 +86,24 @@ const SportGameSchema = new Schema<ISportGame>(
       min: 1,
       max: 5,
       default: 1
+    },
+    // Points configuration for rankings
+    points: {
+      first: {
+        type: Number,
+        min: 0,
+        default: 0
+      },
+      second: {
+        type: Number,
+        min: 0,
+        default: 0
+      },
+      third: {
+        type: Number,
+        min: 0,
+        default: 0
+      }
     },
     isActive: {
       type: Boolean,

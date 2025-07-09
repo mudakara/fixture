@@ -609,6 +609,7 @@ router.post('/', authenticate, canManageFixtures, async (req: Request, res: Resp
       format,
       participantType,
       participants: participantObjectIds,
+      status: 'scheduled', // Set initial status
       startDate,
       endDate,
       settings: settings || {},
@@ -744,12 +745,51 @@ router.get('/:id', authenticate, async (req: Request, res: Response): Promise<vo
       res.status(404).json({ error: 'Fixture not found' });
       return;
     }
+    
+    // Convert to plain object for manipulation
+    let fixtureData = fixture.toObject();
+    
+    // Manually populate winners based on participantType
+    if (fixtureData.winners) {
+      const winnersPopulated: any = {};
+      
+      if (fixtureData.participantType === 'team') {
+        if (fixtureData.winners.first) {
+          const firstPlace = await Team.findById(fixtureData.winners.first).select('name teamLogo').lean();
+          if (firstPlace) winnersPopulated.first = firstPlace;
+        }
+        if (fixtureData.winners.second) {
+          const secondPlace = await Team.findById(fixtureData.winners.second).select('name teamLogo').lean();
+          if (secondPlace) winnersPopulated.second = secondPlace;
+        }
+        if (fixtureData.winners.third) {
+          const thirdPlace = await Team.findById(fixtureData.winners.third).select('name teamLogo').lean();
+          if (thirdPlace) winnersPopulated.third = thirdPlace;
+        }
+      } else {
+        if (fixtureData.winners.first) {
+          const firstPlace = await User.findById(fixtureData.winners.first).select('name email displayName').lean();
+          if (firstPlace) winnersPopulated.first = firstPlace;
+        }
+        if (fixtureData.winners.second) {
+          const secondPlace = await User.findById(fixtureData.winners.second).select('name email displayName').lean();
+          if (secondPlace) winnersPopulated.second = secondPlace;
+        }
+        if (fixtureData.winners.third) {
+          const thirdPlace = await User.findById(fixtureData.winners.third).select('name email displayName').lean();
+          if (thirdPlace) winnersPopulated.third = thirdPlace;
+        }
+      }
+      
+      // Add populated winners to fixture data
+      fixtureData.winners = winnersPopulated;
+    }
 
     // Get all matches for this fixture
     let matches;
     
     try {
-      if (fixture.participantType === 'team') {
+      if (fixtureData.participantType === 'team') {
         matches = await Match.find({ fixtureId: id })
           .populate({
             path: 'homeParticipant',
@@ -823,11 +863,11 @@ router.get('/:id', authenticate, async (req: Request, res: Response): Promise<vo
                   // Log for debugging
                   logger.info(`Team membership for ${participant.name}:`, {
                     tmEventId: tm.eventId?.toString(),
-                    fixtureEventId: fixture.eventId.toString(),
+                    fixtureEventId: fixtureData.eventId.toString(),
                     teamId: tm.teamId?.toString()
                   });
                   
-                  if (tm.eventId && tm.eventId.toString() === fixture.eventId.toString()) {
+                  if (tm.eventId && tm.eventId.toString() === fixtureData.eventId.toString()) {
                     teamIds.add(tm.teamId.toString());
                   }
                 });
@@ -841,7 +881,7 @@ router.get('/:id', authenticate, async (req: Request, res: Response): Promise<vo
           _id: { $in: Array.from(teamIds) }
         }).select('_id name');
         
-        logger.info(`Found ${teams.length} teams for event ${fixture.eventId}:`, teams.map(t => ({ id: t._id, name: t.name })));
+        logger.info(`Found ${teams.length} teams for event ${fixtureData.eventId}:`, teams.map(t => ({ id: t._id, name: t.name })));
         
         const teamMap = new Map<string, any>();
         teams.forEach((team: any) => {
@@ -860,7 +900,7 @@ router.get('/:id', authenticate, async (req: Request, res: Response): Promise<vo
             if (participant && participant.teamMemberships && Array.isArray(participant.teamMemberships)) {
               (matchObj as any)[field].teamMemberships = participant.teamMemberships.map((tm: any) => {
                 const tmObj = tm.toObject ? tm.toObject() : tm;
-                if (tmObj.eventId && tmObj.eventId.toString() === fixture.eventId.toString() && 
+                if (tmObj.eventId && tmObj.eventId.toString() === fixtureData.eventId.toString() && 
                     tmObj.teamId && teamMap.has(tmObj.teamId.toString())) {
                   return {
                     _id: tmObj._id,
@@ -896,21 +936,21 @@ router.get('/:id', authenticate, async (req: Request, res: Response): Promise<vo
     let participantDetails: any[] = [];
     let allEventPlayers: any[] = []; // For doubles fixtures, we need all players from teams
     
-    if (fixture.participantType === 'team') {
-      participantDetails = await Team.find({ _id: { $in: fixture.participants } })
+    if (fixtureData.participantType === 'team') {
+      participantDetails = await Team.find({ _id: { $in: fixtureData.participants } })
         .populate('captainId', 'name email')
         .populate('viceCaptainId', 'name email');
     } else {
-      participantDetails = await User.find({ _id: { $in: fixture.participants } })
+      participantDetails = await User.find({ _id: { $in: fixtureData.participants } })
         .select('name email displayName teamMemberships')
         .lean();
       
       // For doubles fixtures, get ALL players from the teams in this event
-      const sportGame = await SportGame.findById(fixture.sportGameId);
+      const sportGame = await SportGame.findById(fixtureData.sportGameId);
       if (sportGame && sportGame.isDoubles) {
         // Get all teams in this event
         const eventTeams = await Team.find({ 
-          eventId: fixture.eventId,
+          eventId: fixtureData.eventId,
           isActive: true 
         }).select('_id name players');
         
@@ -936,7 +976,7 @@ router.get('/:id', authenticate, async (req: Request, res: Response): Promise<vo
       
       // Manually populate team names for better control
       const eventTeams = await Team.find({ 
-        eventId: fixture.eventId,
+        eventId: fixtureData.eventId,
         isActive: true 
       }).select('_id name');
       
@@ -971,12 +1011,12 @@ router.get('/:id', authenticate, async (req: Request, res: Response): Promise<vo
         });
       }
       
-      logger.info(`Loaded ${participantDetails.length} participants for fixture ${fixture._id}`);
+      logger.info(`Loaded ${participantDetails.length} participants for fixture ${fixtureData._id}`);
     }
 
     res.json({
       success: true,
-      fixture,
+      fixture: fixtureData,
       matches,
       participants: participantDetails,
       allEventPlayers: allEventPlayers // Include all event players for doubles
@@ -1062,6 +1102,31 @@ router.put('/:fixtureId/matches/:matchId', authenticate, canManageFixtures, asyn
     }
 
     await match.save();
+
+    // Check if all matches in the fixture are completed
+    const fixture = await Fixture.findById(fixtureId);
+    if (fixture) {
+      const allMatches = await Match.find({ fixtureId });
+      const completedMatches = allMatches.filter(m => m.status === 'completed' || m.status === 'walkover');
+      
+      // Determine fixture status based on match statuses
+      if (completedMatches.length === allMatches.length && allMatches.length > 0) {
+        // All matches are completed
+        if (fixture.status !== 'completed') {
+          fixture.status = 'completed';
+          await fixture.save();
+          logger.info(`Fixture ${fixture.name} marked as completed - all ${allMatches.length} matches finished`);
+        }
+      } else if (completedMatches.length > 0) {
+        // Some matches are completed, fixture is in progress
+        if (fixture.status !== 'in_progress') {
+          fixture.status = 'in_progress';
+          await fixture.save();
+          logger.info(`Fixture ${fixture.name} marked as in_progress - ${completedMatches.length}/${allMatches.length} matches completed`);
+        }
+      }
+      // If no matches are completed, keep the fixture as 'scheduled'
+    }
 
     // Create audit log
     await AuditLog.create({
@@ -1246,6 +1311,164 @@ router.put('/:fixtureId/matches/:matchId/partners', authenticate, canManageFixtu
   } catch (error: any) {
     logger.error('Error updating match partners:', error);
     res.status(500).json({ error: 'Failed to update match partners' });
+  }
+});
+
+// Update fixture winners
+router.put('/:id/winners', authenticate, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const { first, second, third } = req.body;
+    const user = (req as any).user;
+    
+    // Check if user is admin or super admin
+    if (user?.role !== 'super_admin' && user?.role !== 'admin') {
+      res.status(403).json({ error: 'Only administrators can update winners' });
+      return;
+    }
+    
+    const fixture = await Fixture.findById(id);
+    if (!fixture || !fixture.isActive) {
+      res.status(404).json({ error: 'Fixture not found' });
+      return;
+    }
+    
+    if (fixture.format !== 'knockout') {
+      res.status(400).json({ error: 'Winners can only be set for knockout fixtures' });
+      return;
+    }
+    
+    // Validate that winners are participants
+    const participantIds = fixture.participants.map(p => p.toString());
+    if (first && !participantIds.includes(first)) {
+      res.status(400).json({ error: 'First place winner must be a participant' });
+      return;
+    }
+    if (second && !participantIds.includes(second)) {
+      res.status(400).json({ error: 'Second place winner must be a participant' });
+      return;
+    }
+    if (third && !participantIds.includes(third)) {
+      res.status(400).json({ error: 'Third place winner must be a participant' });
+      return;
+    }
+    
+    // Update winners
+    if (!fixture.winners) {
+      fixture.winners = {};
+    }
+    
+    if (first) fixture.winners.first = new mongoose.Types.ObjectId(first);
+    if (second) fixture.winners.second = new mongoose.Types.ObjectId(second);
+    if (third) fixture.winners.third = new mongoose.Types.ObjectId(third);
+    
+    await fixture.save();
+    
+    // Create audit log
+    await AuditLog.create({
+      userId: user._id,
+      action: 'update',
+      entity: 'fixture',
+      entityId: fixture._id,
+      details: {
+        winnersUpdated: true,
+        first,
+        second,
+        third
+      }
+    });
+    
+    logger.info(`Fixture ${fixture.name} winners updated by ${user.name}`);
+    
+    res.json({
+      success: true,
+      message: 'Winners updated successfully',
+      winners: fixture.winners
+    });
+  } catch (error: any) {
+    logger.error('Error updating fixture winners:', error);
+    res.status(500).json({ error: 'Failed to update winners' });
+  }
+});
+
+// Sync fixture status based on match completion
+router.post('/:id/sync-status', authenticate, canManageFixtures, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const user = (req as any).user;
+
+    const fixture = await Fixture.findById(id);
+    if (!fixture || !fixture.isActive) {
+      res.status(404).json({ error: 'Fixture not found' });
+      return;
+    }
+
+    // Get all matches for this fixture
+    const allMatches = await Match.find({ fixtureId: id });
+    const completedMatches = allMatches.filter(m => m.status === 'completed' || m.status === 'walkover');
+    
+    let statusUpdated = false;
+    let oldStatus = fixture.status;
+    
+    // Determine fixture status based on match statuses
+    if (completedMatches.length === allMatches.length && allMatches.length > 0) {
+      // All matches are completed
+      if (fixture.status !== 'completed') {
+        fixture.status = 'completed';
+        statusUpdated = true;
+      }
+    } else if (completedMatches.length > 0) {
+      // Some matches are completed, fixture is in progress
+      if (fixture.status !== 'in_progress') {
+        fixture.status = 'in_progress';
+        statusUpdated = true;
+      }
+    } else {
+      // No matches are completed, fixture should be scheduled
+      if (fixture.status !== 'scheduled') {
+        fixture.status = 'scheduled';
+        statusUpdated = true;
+      }
+    }
+    
+    if (statusUpdated) {
+      await fixture.save();
+      
+      // Create audit log
+      await AuditLog.create({
+        userId: user._id,
+        action: 'update',
+        entity: 'fixture',
+        entityId: fixture._id,
+        details: {
+          statusSync: true,
+          oldStatus,
+          newStatus: fixture.status,
+          totalMatches: allMatches.length,
+          completedMatches: completedMatches.length
+        }
+      });
+      
+      logger.info(`Fixture ${fixture.name} status synced from ${oldStatus} to ${fixture.status}`);
+    }
+
+    res.json({
+      success: true,
+      message: statusUpdated ? `Fixture status updated from ${oldStatus} to ${fixture.status}` : 'Fixture status is already correct',
+      fixture: {
+        id: fixture._id,
+        name: fixture.name,
+        status: fixture.status,
+        matchStats: {
+          total: allMatches.length,
+          completed: completedMatches.length,
+          remaining: allMatches.length - completedMatches.length
+        }
+      }
+    });
+  } catch (error: any) {
+    logger.error('Error syncing fixture status:', error);
+    res.status(500).json({ error: 'Failed to sync fixture status' });
   }
 });
 
