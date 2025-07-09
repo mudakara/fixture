@@ -18,7 +18,8 @@
     "next": "15.3.5",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "react-redux": "^9.2.0"
+    "react-redux": "^9.2.0",
+    "styled-jsx": "^5.1.7"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

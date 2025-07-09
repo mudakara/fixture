@@ -1,0 +1,96 @@
+/* Print styles for tournament bracket */
+@media print {
+  @page {
+    size: A4 landscape;
+    margin: 10mm;
+  }
+  
+  /* Global print resets */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  
+  body {
+    margin: 0 !important;
+    padding: 0 !important;
+    background: white !important;
+    color: black !important;
+  }
+  
+  /* Hide elements */
+  .printHide {
+    display: none !important;
+  }
+  
+  /* Show print-only elements */
+  .printShow {
+    display: block !important;
+  }
+  
+  /* Main container */
+  .printContainer {
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+  
+  /* Bracket container */
+  .printBracket {
+    overflow: visible !important;
+    background: white !important;
+    padding: 10px !important;
+    width: 100% !important;
+    transform: scale(0.9);
+    transform-origin: top left;
+    page-break-inside: auto !important;
+  }
+  
+  /* For large brackets */
+  .printBracket.large {
+    transform: scale(0.75);
+  }
+  
+  /* For very large brackets */
+  .printBracket.xlarge {
+    transform: scale(0.65);
+  }
+  
+  /* Match cards */
+  .printMatchCard {
+    border: 1px solid #000 !important;
+    box-shadow: none !important;
+    page-break-inside: avoid !important;
+    background: white !important;
+    color: black !important;
+  }
+  
+  /* Winner highlighting */
+  .printWinner {
+    background-color: #e0e0e0 !important;
+    border: 2px solid #000 !important;
+  }
+  
+  /* Champion card */
+  .printChampion {
+    border: 3px solid #000 !important;
+    background: #f0f0f0 !important;
+  }
+  
+  /* Text colors */
+  .printText {
+    color: #000 !important;
+  }
+  
+  /* Hide all buttons */
+  button {
+    display: none !important;
+  }
+  
+  /* Round headers */
+  h3 {
+    color: #000 !important;
+    font-weight: bold !important;
+    page-break-after: avoid !important;
+  }
+}

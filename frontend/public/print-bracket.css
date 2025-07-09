@@ -1,0 +1,146 @@
+/* Print styles for tournament bracket */
+@media print {
+  @page {
+    size: A4 landscape !important;
+    margin: 10mm !important;
+  }
+  
+  /* Force everything to be visible and properly styled */
+  * {
+    visibility: visible !important;
+    opacity: 1 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  
+  /* Hide specific elements */
+  .print-hide,
+  header,
+  nav,
+  button {
+    display: none !important;
+    visibility: hidden !important;
+  }
+  
+  /* Reset body and containers */
+  body {
+    margin: 0 !important;
+    padding: 0 !important;
+    background: white !important;
+    color: black !important;
+    overflow: visible !important;
+  }
+  
+  html {
+    overflow: visible !important;
+  }
+  
+  .min-h-screen {
+    min-height: auto !important;
+    background: white !important;
+  }
+  
+  .max-w-7xl {
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+  
+  /* Show print header */
+  .print-header {
+    display: block !important;
+    margin-bottom: 20px !important;
+    page-break-after: avoid !important;
+    text-align: center !important;
+  }
+  
+  /* Tournament bracket container */
+  #knockout-bracket {
+    display: block !important;
+    overflow: visible !important;
+    background: white !important;
+    padding: 10px !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    transform: scale(0.85) !important;
+    transform-origin: top left !important;
+    page-break-inside: auto !important;
+    position: relative !important;
+  }
+  
+  /* All elements inside bracket should be visible */
+  #knockout-bracket * {
+    visibility: visible !important;
+    opacity: 1 !important;
+  }
+  
+  /* Match cards */
+  #knockout-bracket .bg-white {
+    background: white !important;
+    border: 1px solid #000 !important;
+    box-shadow: none !important;
+    page-break-inside: avoid !important;
+  }
+  
+  /* Text should be black */
+  #knockout-bracket span,
+  #knockout-bracket div,
+  #knockout-bracket p,
+  #knockout-bracket h1,
+  #knockout-bracket h2,
+  #knockout-bracket h3 {
+    color: #000 !important;
+  }
+  
+  /* Winner highlighting */
+  #knockout-bracket .bg-green-100 {
+    background-color: #e0e0e0 !important;
+    border: 2px solid #000 !important;
+  }
+  
+  /* Champion card */
+  #knockout-bracket .border-yellow-400 {
+    border: 3px solid #000 !important;
+    background: #f0f0f0 !important;
+  }
+  
+  /* Connection lines - use attribute selectors */
+  #knockout-bracket div[style*="background-color: rgb(16, 185, 129)"] {
+    background-color: #000 !important;
+  }
+  
+  #knockout-bracket div[style*="background-color: rgb(156, 163, 175)"] {
+    background-color: #666 !important;
+  }
+  
+  /* Round headers */
+  h3 {
+    color: #000 !important;
+    font-weight: bold !important;
+    page-break-after: avoid !important;
+  }
+  
+  /* Remove all shadows and transitions */
+  * {
+    box-shadow: none !important;
+    text-shadow: none !important;
+    transition: none !important;
+  }
+  
+  /* Hide overflow containers */
+  .overflow-x-auto {
+    overflow: visible !important;
+  }
+  
+  /* Ensure bracket rounds stay together when possible */
+  .absolute[style*="left"] {
+    page-break-inside: avoid !important;
+  }
+  
+  /* For very large tournaments, scale down more */
+  @media (min-width: 250mm) {
+    #knockout-bracket {
+      transform: scale(0.7) !important;
+    }
+  }
+}

@@ -8,6 +8,7 @@ import { useEffect, useState } from 'react';
 import { use } from 'react';
 import axios from 'axios';
 import Link from 'next/link';
+import '@/styles/print-bracket.css';
 
 interface Params {
   id: string;
@@ -624,13 +625,6 @@ function FixtureDetailContent({ params }: { params: Promise<Params> }) {
       <div 
         className="overflow-x-auto pb-8 bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl p-6" 
         id="knockout-bracket"
-        style={{
-          '@media print': {
-            overflow: 'visible',
-            background: 'white',
-            padding: 0
-          }
-        } as any}
       >
         <div className="relative print-bracket-container" style={{ minHeight: `${totalHeight + 100}px` }}>
           {Object.entries(roundMatches).map(([round, roundMatchList], roundIndex) => {
@@ -1094,116 +1088,58 @@ function FixtureDetailContent({ params }: { params: Promise<Params> }) {
   if (!fixture) return <div>Fixture not found</div>;
 
   return (
-    <div className="min-h-screen bg-gray-100">
-      <style jsx global>{`
+    <>
+      <style>{`
         @media print {
           @page {
-            size: A4 landscape;
-            margin: 10mm;
+            size: A4 landscape !important;
+            margin: 10mm !important;
           }
           
-          /* Force white background and black text */
           * {
-            background: white !important;
-            color: black !important;
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
           }
           
-          /* Hide all elements with print-hide class */
           .print-hide {
             display: none !important;
           }
           
-          /* Show print header */
+          body {
+            background: white !important;
+            margin: 0 !important;
+            padding: 0 !important;
+          }
+          
           .print-header {
             display: block !important;
+            text-align: center !important;
             margin-bottom: 20px !important;
-            page-break-after: avoid !important;
           }
           
-          /* Main container adjustments */
-          body {
-            margin: 0 !important;
-            padding: 0 !important;
-          }
-          
-          .max-w-7xl {
-            max-width: 100% !important;
-            margin: 0 !important;
-            padding: 0 !important;
-          }
-          
-          /* Bracket specific styling */
           #knockout-bracket {
             overflow: visible !important;
-            background: white !important;
-            padding: 10px !important;
+            transform: scale(0.85) !important;
+            transform-origin: top left !important;
             width: 100% !important;
-            transform: scale(0.85);
-            transform-origin: top left;
-            page-break-inside: auto !important;
           }
           
-          /* Tournament bracket container */
-          #knockout-bracket > div {
-            background: white !important;
+          #knockout-bracket * {
+            color: black !important;
           }
           
-          /* Match cards - ensure they're visible */
           #knockout-bracket .bg-white {
-            border: 1px solid #000 !important;
-            box-shadow: none !important;
-            page-break-inside: avoid !important;
+            border: 1px solid black !important;
             background: white !important;
           }
           
-          /* Winner highlighting */
           #knockout-bracket .bg-green-100 {
             background-color: #e0e0e0 !important;
-            border: 2px solid #000 !important;
-          }
-          
-          /* Champion card */
-          #knockout-bracket .border-yellow-400 {
-            border: 3px solid #000 !important;
-            background: #f0f0f0 !important;
-          }
-          
-          /* Connection lines */
-          #knockout-bracket div[style*="background-color: rgb(16, 185, 129)"] {
-            background-color: #000 !important;
-          }
-          
-          #knockout-bracket div[style*="background-color: rgb(156, 163, 175)"] {
-            background-color: #666 !important;
-          }
-          
-          /* Hide interactive elements */
-          button {
-            display: none !important;
-          }
-          
-          /* Round headers */
-          h3 {
-            color: #000 !important;
-            font-weight: bold !important;
-            page-break-after: avoid !important;
-          }
-          
-          /* Ensure text is readable */
-          .text-gray-900, .text-gray-800, .text-gray-700, .text-gray-600, .text-gray-500 {
-            color: #000 !important;
-          }
-          
-          /* For very large tournaments */
-          @media (min-width: 250mm) {
-            #knockout-bracket {
-              transform: scale(0.7) !important;
-            }
+            border: 2px solid black !important;
           }
         }
       `}</style>
+    <div className="min-h-screen bg-gray-100">
       <div className="print-hide">
         <Header />
       </div>

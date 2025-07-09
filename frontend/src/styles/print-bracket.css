@@ -1,41 +1,19 @@
-@import "tailwindcss";
-
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-/* Theme variables moved to :root */
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
-}
-
-/* Print Styles for Tournament Bracket */
+/* Tournament Bracket Print Styles */
 @media print {
-  /* Page setup for A4 landscape */
+  /* Page setup */
   @page {
     size: A4 landscape;
     margin: 10mm;
   }
   
-  /* Force color printing */
+  /* Force exact colors */
   * {
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
     color-adjust: exact !important;
   }
   
-  /* Reset backgrounds and colors */
+  /* Global resets for print */
   body {
     background: white !important;
     color: black !important;
@@ -43,13 +21,13 @@ body {
     padding: 0 !important;
   }
   
-  /* Hide non-essential elements */
+  /* Hide screen-only elements */
   .print-hide,
   header,
   nav,
   button,
   .fixed,
-  .absolute.top-0.right-0.text-xs /* Scroll indicator */ {
+  .absolute.top-0.right-0.text-xs {
     display: none !important;
   }
   
@@ -65,14 +43,16 @@ body {
     font-size: 24px !important;
     font-weight: bold !important;
     margin-bottom: 8px !important;
+    color: black !important;
   }
   
   .print-header p {
     font-size: 16px !important;
     margin-bottom: 4px !important;
+    color: black !important;
   }
   
-  /* Container adjustments */
+  /* Layout adjustments */
   .min-h-screen {
     min-height: auto !important;
   }
@@ -83,18 +63,19 @@ body {
     padding: 0 !important;
   }
   
+  /* Remove all padding/margins */
   .px-4, .py-6, .sm\:px-6, .lg\:px-8, .sm\:px-0 {
     padding: 0 !important;
   }
   
-  /* Remove all shadows and rounded corners */
+  /* Remove decorative styles */
   .shadow, .shadow-md, .shadow-lg, .shadow-xl,
   .rounded, .rounded-md, .rounded-lg, .rounded-xl {
     box-shadow: none !important;
     border-radius: 0 !important;
   }
   
-  /* Bracket container specific */
+  /* Tournament bracket specific */
   #knockout-bracket {
     overflow: visible !important;
     background: white !important;
@@ -105,7 +86,6 @@ body {
     page-break-inside: auto !important;
   }
   
-  /* Bracket inner container */
   .print-bracket-container {
     position: relative !important;
     background: white !important;
@@ -134,7 +114,7 @@ body {
     page-break-inside: avoid !important;
   }
   
-  /* Match text */
+  /* Text sizes */
   #knockout-bracket .text-sm {
     font-size: 12px !important;
   }
@@ -143,7 +123,7 @@ body {
     font-size: 10px !important;
   }
   
-  /* All text should be black */
+  /* Force all text to black */
   #knockout-bracket span,
   #knockout-bracket div {
     color: black !important;
@@ -173,18 +153,18 @@ body {
     border: 1px solid black !important;
   }
   
-  /* Connection lines - use inline styles */
+  /* Connection lines */
   #knockout-bracket div[style*="backgroundColor"] {
     print-color-adjust: exact !important;
     -webkit-print-color-adjust: exact !important;
   }
   
-  /* Winner path lines (green) */
+  /* Winner path lines */
   #knockout-bracket div[style*="rgb(16, 185, 129)"] {
     background-color: black !important;
   }
   
-  /* Regular lines (gray) */
+  /* Regular lines */
   #knockout-bracket div[style*="rgb(156, 163, 175)"] {
     background-color: #666 !important;
   }
@@ -195,12 +175,12 @@ body {
     border: 1px solid white !important;
   }
   
-  /* Legend/key */
+  /* Hide legend */
   .flex.items-center.space-x-3.text-sm {
     display: none !important;
   }
   
-  /* For larger tournaments, scale down more */
+  /* Responsive scaling for larger tournaments */
   @media (min-width: 1200px) {
     #knockout-bracket {
       transform: scale(0.75) !important;
@@ -213,7 +193,7 @@ body {
     }
   }
   
-  /* Ensure no page breaks in critical areas */
+  /* Page break control */
   .absolute[style*="top"] {
     page-break-inside: avoid !important;
   }
