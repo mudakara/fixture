@@ -1348,7 +1348,20 @@ function FixtureDetailContent({ params }: { params: Promise<Params> }) {
                 {/* Print button for knockout fixtures */}
                 {fixture.format === 'knockout' && (
                   <button
-                    onClick={() => window.print()}
+                    onClick={() => {
+                      // Add print class to body
+                      document.body.classList.add('printing-bracket');
+                      
+                      // Force a small delay to ensure styles are applied
+                      setTimeout(() => {
+                        window.print();
+                        
+                        // Remove print class after printing
+                        setTimeout(() => {
+                          document.body.classList.remove('printing-bracket');
+                        }, 500);
+                      }, 100);
+                    }}
                     className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 flex items-center space-x-2 print:hidden"
                     title="Print tournament bracket"
                   >
