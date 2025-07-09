@@ -1087,6 +1087,146 @@ function FixtureDetailContent({ params }: { params: Promise<Params> }) {
   if (!fixture) return <div>Fixture not found</div>;
 
   return (
+    <>
+      <style dangerouslySetInnerHTML={{ __html: `
+        @media print {
+          @page {
+            size: A4 landscape !important;
+            margin: 10mm !important;
+          }
+          
+          /* Force exact colors */
+          * {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+            color-adjust: exact !important;
+          }
+          
+          /* Hide elements */
+          .print-hide,
+          header,
+          nav,
+          button,
+          .fixed {
+            display: none !important;
+          }
+          
+          /* Reset body */
+          body {
+            background: white !important;
+            color: black !important;
+            margin: 0 !important;
+            padding: 0 !important;
+          }
+          
+          /* Layout */
+          .min-h-screen {
+            min-height: auto !important;
+            background: white !important;
+          }
+          
+          .max-w-7xl {
+            max-width: 100% !important;
+            margin: 0 !important;
+            padding: 0 !important;
+          }
+          
+          /* Show print header */
+          .print-header {
+            display: block !important;
+            text-align: center !important;
+            margin-bottom: 20px !important;
+            border-bottom: 2px solid #000 !important;
+            padding-bottom: 10px !important;
+          }
+          
+          .print-header h1 {
+            font-size: 24px !important;
+            color: #000 !important;
+            margin-bottom: 8px !important;
+          }
+          
+          .print-header p {
+            font-size: 14px !important;
+            color: #000 !important;
+            margin: 4px 0 !important;
+          }
+          
+          /* Tournament bracket */
+          #knockout-bracket {
+            overflow: visible !important;
+            background: white !important;
+            padding: 10px !important;
+            width: 100% !important;
+            transform: scale(0.85) !important;
+            transform-origin: top left !important;
+          }
+          
+          /* Match cards */
+          #knockout-bracket .bg-white {
+            border: 1px solid #000 !important;
+            background: white !important;
+            box-shadow: none !important;
+          }
+          
+          /* Winner highlighting */
+          #knockout-bracket .bg-green-100 {
+            background-color: #e0e0e0 !important;
+            border: 2px solid #000 !important;
+          }
+          
+          /* Champion card */
+          #knockout-bracket .border-yellow-400 {
+            border: 3px solid #000 !important;
+            background: #f0f0f0 !important;
+          }
+          
+          /* Connection lines - force black */
+          #knockout-bracket div[style*="backgroundColor: rgb(16, 185, 129)"],
+          #knockout-bracket div[style*="background-color: rgb(16, 185, 129)"] {
+            background-color: #000 !important;
+          }
+          
+          #knockout-bracket div[style*="backgroundColor: rgb(156, 163, 175)"],
+          #knockout-bracket div[style*="background-color: rgb(156, 163, 175)"] {
+            background-color: #666 !important;
+          }
+          
+          /* All text black */
+          #knockout-bracket * {
+            color: #000 !important;
+          }
+          
+          /* Hide interactive elements */
+          .hover\\:shadow-xl,
+          .hover\\:scale-\\[1\\.02\\],
+          .transition-all,
+          .cursor-pointer {
+            cursor: default !important;
+          }
+          
+          /* Remove all decorative styles */
+          .shadow,
+          .shadow-md,
+          .shadow-lg,
+          .shadow-xl {
+            box-shadow: none !important;
+          }
+          
+          .rounded,
+          .rounded-md,
+          .rounded-lg {
+            border-radius: 0 !important;
+          }
+          
+          /* For large tournaments */
+          @media (min-width: 250mm) {
+            #knockout-bracket {
+              transform: scale(0.7) !important;
+            }
+          }
+        }
+      ` }} />
     <div className="min-h-screen bg-gray-100">
       <div className="print-hide">
         <Header />
@@ -1399,6 +1539,7 @@ function FixtureDetailContent({ params }: { params: Promise<Params> }) {
         </div>
       )}
     </div>
+    </>
   );
 }
 
