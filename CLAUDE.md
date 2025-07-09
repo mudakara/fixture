@@ -313,6 +313,17 @@ npm run dev         # Start both frontend (port 3500) and backend (port 3501)
    - Bye matches properly labeled as "Bye Match" instead of "scheduled"
    - Non-interactive bye match cards (no hover/click functionality)
 
+6. **Team Points Scorecard Calculation**:
+   - Processes both team and player fixtures with `status: 'completed'`
+   - For team fixtures: Points awarded directly to the winning team
+   - For player fixtures: 
+     - Finds the winning player's team membership for the event
+     - Awards points to that team
+     - Activity breakdown shows player name (e.g., "Badminton (John Doe)")
+   - Aggregates points across all completed fixtures in an event
+   - Supports filtering by specific event or all events
+   - Debug logging tracks player-to-team point attribution
+
 ### Key Features
 
 1. **Event Management System**
@@ -413,12 +424,16 @@ npm run dev         # Start both frontend (port 3500) and backend (port 3501)
 
 11. **Team Points Scorecard System**
     - Automatic calculation of team rankings based on tournament results
+    - Points awarded to teams when:
+      - Team wins in team-based fixtures
+      - Team's player wins in individual player fixtures
     - Points awarded based on activity configuration (1st, 2nd, 3rd place)
     - Comprehensive leaderboard showing total points and breakdown
     - Event-based filtering for focused competition tracking
     - Visual medals and rankings for top performing teams
     - Support for both knockout and round-robin tournament formats
     - Points reference showing all activities with their point values
+    - Activity breakdown shows player names for individual wins
 
 ## API Endpoints
 
@@ -585,6 +600,12 @@ Required API Permissions:
     - Better handling of third-place matches and semi-final losers
   - Enhanced debugging with detailed logging throughout scorecard calculation
   - Added debug information in API responses
+  - **Player Fixtures Now Award Points to Teams**:
+    - Modified scorecard to include both team and player fixtures
+    - When a player wins an activity, their team receives the points
+    - System finds the winning player's team for that event
+    - Activity breakdown shows player name (e.g., "Badminton (John Doe)")
+    - Enables individual competition while contributing to team rankings
   
 - **Activity Cards UX Improvements**:
   - Redesigned points display to be more prominent:
