@@ -94,7 +94,7 @@ app.use('/api', permissionsRoutes);
 app.use('/api', eventsRoutes);
 app.use('/api', teamsRoutes);
 app.use('/api', dashboardRoutes);
-app.use('/api', sportGamesRoutes);
+app.use('/api/sportgames', sportGamesRoutes);
 app.use('/api/fixtures', fixtureRoutes);
 app.use('/api', scorecardRoutes);
 app.use('/api', playersRoutes);

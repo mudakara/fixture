@@ -55,7 +55,7 @@ const adminOnly = (req: Request, res: Response, next: Function) => {
 };
 
 // Create a new sport/game
-router.post('/sportgames', authenticate, adminOnly, upload.single('image'), async (req: Request, res: Response): Promise<void> => {
+router.post('/', authenticate, adminOnly, upload.single('image'), async (req: Request, res: Response): Promise<void> => {
   try {
     const { title, description, type, category, rules, minPlayers, maxPlayers, duration, venue, equipment, isDoubles, hasMultipleSets, numberOfSets, points } = req.body;
     const user = (req as any).user;
@@ -155,7 +155,7 @@ router.post('/sportgames', authenticate, adminOnly, upload.single('image'), asyn
 });
 
 // Get all sports/games
-router.get('/sportgames', authenticate, async (req: Request, res: Response): Promise<void> => {
+router.get('/', authenticate, async (req: Request, res: Response): Promise<void> => {
   try {
     const { type, category, search } = req.query;
     
@@ -192,7 +192,7 @@ router.get('/sportgames', authenticate, async (req: Request, res: Response): Pro
 });
 
 // Get single sport/game
-router.get('/sportgames/:id', authenticate, async (req: Request, res: Response): Promise<void> => {
+router.get('/:id', authenticate, async (req: Request, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
 
@@ -215,7 +215,7 @@ router.get('/sportgames/:id', authenticate, async (req: Request, res: Response):
 });
 
 // Update sport/game
-router.put('/sportgames/:id', authenticate, adminOnly, upload.single('image'), async (req: Request, res: Response): Promise<void> => {
+router.put('/:id', authenticate, adminOnly, upload.single('image'), async (req: Request, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
     const { title, description, type, category, rules, minPlayers, maxPlayers, duration, venue, equipment, isDoubles, hasMultipleSets, numberOfSets, points } = req.body;
@@ -386,7 +386,7 @@ router.put('/sportgames/:id', authenticate, adminOnly, upload.single('image'), a
 });
 
 // Delete sport/game (soft delete)
-router.delete('/sportgames/:id', authenticate, adminOnly, async (req: Request, res: Response): Promise<void> => {
+router.delete('/:id', authenticate, adminOnly, async (req: Request, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
     const user = (req as any).user;
@@ -431,7 +431,7 @@ router.delete('/sportgames/:id', authenticate, adminOnly, async (req: Request, r
 });
 
 // Get sport/game categories
-router.get('/sportgames-categories', authenticate, async (_req: Request, res: Response): Promise<void> => {
+router.get('/categories', authenticate, async (_req: Request, res: Response): Promise<void> => {
   try {
     const categories = await SportGame.distinct('category', { isActive: true, category: { $ne: null } });
     
