@@ -1206,9 +1206,20 @@ router.put('/:fixtureId/matches/:matchId', authenticate, canManageFixtures, asyn
       }
     });
 
+    // Populate and return the updated match
+    const populatedMatch = await Match.findById(matchId)
+      .populate('homeParticipant', 'name email displayName')
+      .populate('awayParticipant', 'name email displayName')
+      .populate('homePartner', 'name email displayName')
+      .populate('awayPartner', 'name email displayName')
+      .populate('winner', 'name email displayName')
+      .populate('loser', 'name email displayName')
+      .populate('winnerPartner', 'name email displayName')
+      .populate('loserPartner', 'name email displayName');
+
     res.json({
       success: true,
-      match
+      match: populatedMatch
     });
   } catch (error: any) {
     logger.error('Error updating match:', error);
@@ -1263,11 +1274,9 @@ router.put('/:fixtureId/matches/:matchId/participants', authenticate, async (req
       match.loser = undefined;
       match.status = 'scheduled';
       
-      // Also clear partner fields if they exist
-      match.homePartner = undefined;
-      match.awayPartner = undefined;
-      match.winnerPartner = undefined;
-      match.loserPartner = undefined;
+      // Note: We do NOT clear partner fields here anymore
+      // Partners should be managed separately through the /partners endpoint
+      // This prevents partners from being lost when participants are dragged/dropped
     }
 
     await match.save();
@@ -1289,7 +1298,9 @@ router.put('/:fixtureId/matches/:matchId/participants', authenticate, async (req
     // Populate and return the updated match
     const updatedMatch = await Match.findById(matchId)
       .populate('homeParticipant', 'name email displayName')
-      .populate('awayParticipant', 'name email displayName');
+      .populate('awayParticipant', 'name email displayName')
+      .populate('homePartner', 'name email displayName')
+      .populate('awayPartner', 'name email displayName');
 
     res.json({ success: true, match: updatedMatch });
   } catch (error: any) {
@@ -1353,6 +1364,39 @@ router.put('/:fixtureId/matches/:matchId/partners', authenticate, canManageFixtu
     }
 
     await match.save();
+
+    // If match is completed and has a winner with partner, update next match
+    if (match.status === 'completed' && match.winner && match.winnerPartner && match.nextMatchId) {
+      const nextMatch = await Match.findById(match.nextMatchId);
+      if (nextMatch) {
+        // Check previousMatchIds to determine position
+        const previousMatchIndex = nextMatch.previousMatchIds?.findIndex(
+          id => id && (id.toString() === matchId)
+        );
+        
+        if (previousMatchIndex === 0) {
+          // This match feeds to home position
+          if (nextMatch.homeParticipant?.toString() === match.winner.toString()) {
+            nextMatch.homePartner = match.winnerPartner;
+          }
+        } else if (previousMatchIndex === 1) {
+          // This match feeds to away position
+          if (nextMatch.awayParticipant?.toString() === match.winner.toString()) {
+            nextMatch.awayPartner = match.winnerPartner;
+          }
+        } else {
+          // Fallback: check which position has the winner
+          if (nextMatch.homeParticipant?.toString() === match.winner.toString()) {
+            nextMatch.homePartner = match.winnerPartner;
+          } else if (nextMatch.awayParticipant?.toString() === match.winner.toString()) {
+            nextMatch.awayPartner = match.winnerPartner;
+          }
+        }
+        
+        await nextMatch.save();
+        logger.info(`Updated next match ${nextMatch._id} with partner from match ${matchId}`);
+      }
+    }
 
     // Create audit log
     await AuditLog.create({
