@@ -133,6 +133,8 @@ function FixtureDetailContent({ params }: { params: Promise<Params> }) {
 
   const canManageFixtures = user?.role === 'super_admin' || user?.role === 'admin' || user?.role === 'captain' || user?.role === 'vicecaptain';
   const isSuperAdmin = user?.role === 'super_admin';
+  const isAdmin = user?.role === 'admin';
+  const canRandomize = isSuperAdmin || isAdmin;
   
   // Check if any matches have been played
   const hasPlayedMatches = matches.some(m => m.status === 'completed' || m.status === 'in_progress');
@@ -646,7 +648,13 @@ function FixtureDetailContent({ params }: { params: Promise<Params> }) {
   const handleRandomize = async () => {
     if (!fixture) return;
     
-    const confirmMessage = 'Are you sure you want to randomize the bracket? This will regenerate all matches with new random pairings.';
+    // Double-check matches haven't been played
+    if (hasPlayedMatches) {
+      alert('Cannot randomize fixture - some matches have already been played.');
+      return;
+    }
+    
+    const confirmMessage = 'Are you sure you want to randomize the bracket? This will regenerate all matches with new random pairings while maintaining fixture settings.';
     if (!confirm(confirmMessage)) return;
 
     try {
@@ -1647,16 +1655,18 @@ function FixtureDetailContent({ params }: { params: Promise<Params> }) {
                 {fixture.format === 'knockout' ? 'Tournament Bracket' : 'Matches'}
               </h2>
               <div className="flex items-center space-x-4">
-                {/* Randomize button for super admin on knockout fixtures with teams */}
-                {isSuperAdmin && fixture.format === 'knockout' && fixture.participantType === 'team' && !hasPlayedMatches && (
+                {/* Randomize button for super admin and admin on knockout fixtures */}
+                {canRandomize && fixture.format === 'knockout' && (
                   <button
                     onClick={handleRandomize}
-                    className="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 flex items-center space-x-2 print:hidden"
+                    disabled={hasPlayedMatches}
+                    className={`px-4 py-2 ${hasPlayedMatches ? 'bg-gray-400 cursor-not-allowed' : 'bg-purple-600 hover:bg-purple-700'} text-white rounded-md flex items-center space-x-2 print:hidden transition-colors`}
+                    title={hasPlayedMatches ? 'Cannot randomize - matches have been played' : 'Randomize the bracket with new pairings'}
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                     </svg>
-                    <span>Randomize Bracket</span>
+                    <span>Randomize</span>
                   </button>
                 )}
                 {/* Edit Fixture button for super admin on player knockout fixtures */}

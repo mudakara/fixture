@@ -1685,9 +1685,9 @@ router.post('/:id/randomize', authenticate, async (req: Request, res: Response):
     const { id } = req.params;
     const user = (req as any).user;
 
-    // Only super admin can randomize
-    if (user.role !== 'super_admin') {
-      res.status(403).json({ error: 'Only super admins can randomize fixtures' });
+    // Only super admin and admin can randomize
+    if (user.role !== 'super_admin' && user.role !== 'admin') {
+      res.status(403).json({ error: 'Only super admins and admins can randomize fixtures' });
       return;
     }
 
