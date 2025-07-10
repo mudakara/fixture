@@ -45,7 +45,21 @@ if (process.env.NODE_ENV !== 'production') {
     new winston.transports.Console({
       format: winston.format.combine(
         winston.format.colorize(),
-        winston.format.simple()
+        winston.format.printf(({ level, message, timestamp, ...metadata }) => {
+          let msg = `${level}: ${message}`;
+          
+          // If message is an object, stringify it
+          if (typeof message === 'object') {
+            msg = `${level}: ${JSON.stringify(message, null, 2)}`;
+          }
+          
+          // Add any additional metadata
+          if (Object.keys(metadata).length > 0) {
+            msg += ` ${JSON.stringify(metadata)}`;
+          }
+          
+          return msg;
+        })
       )
     })
   );

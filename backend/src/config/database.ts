@@ -1,12 +1,12 @@
 import mongoose from 'mongoose';
-import winston from 'winston';
+import logger from '../utils/logger';
 
 const connectDB = async (): Promise<void> => {
   try {
     const conn = await mongoose.connect(process.env.MONGODB_URI as string);
-    winston.info(`MongoDB Connected: ${conn.connection.host}`);
+    logger.info(`MongoDB Connected: ${conn.connection.host}`);
   } catch (error) {
-    winston.error('MongoDB connection error:', error);
+    logger.error('MongoDB connection error:', error);
     process.exit(1);
   }
 };
