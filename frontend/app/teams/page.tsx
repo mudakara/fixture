@@ -73,7 +73,11 @@ function TeamsContent() {
       const response = await axios.get(teamsUrl, {
         withCredentials: true
       });
-      setTeams(response.data.teams);
+      // Sort teams by name alphabetically
+      const sortedTeams = response.data.teams.sort((a: Team, b: Team) => 
+        a.name.localeCompare(b.name)
+      );
+      setTeams(sortedTeams);
       setLoading(false);
     } catch (err: any) {
       setError(err.response?.data?.error || 'Failed to fetch teams');
