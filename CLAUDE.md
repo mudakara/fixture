@@ -589,7 +589,44 @@ Required API Permissions:
 
 ## Recent Updates
 
-### v0.13 Updates (Latest)
+### v0.14 Updates (Latest)
+- **Captain and Vice-Captain Labels in Fixture Creation**:
+  - Added visual indicators (C/VC badges) for team leaders in participant selection
+  - Captain gets an indigo badge with "C" label
+  - Vice-captain gets a purple badge with "VC" label
+  - Helps tournament organizers identify team leadership when creating fixtures
+  - Labels appear inline with player names in the participant selection grid
+
+- **Fixed Doubles Partner Loss Issue**:
+  - Fixed critical bug where partners were being removed when advancing to next round
+  - Root cause: Partner fields were being cleared when updating match participants
+  - Solution implemented:
+    - No longer clear partner fields when updating match participants via drag-drop
+    - Partners are now managed separately through dedicated /partners endpoint
+    - Added partner population to all match update responses
+    - Enhanced partner sync logic when updating via /partners endpoint
+    - Partners now properly persist through tournament progression
+  - Technical details:
+    - Modified `PUT /fixtures/:fixtureId/matches/:matchId/participants` endpoint
+    - Added comprehensive partner population in match responses
+    - Ensured winner/loser partners advance correctly to next matches
+
+- **Team Sorting Enhancements**:
+  - Teams are now sorted alphabetically by name in:
+    - Event details page team list
+    - Teams listing page
+    - Dashboard team displays
+  - Uses JavaScript's `localeCompare` for proper alphabetical ordering
+  - Provides consistent team ordering across the application
+
+- **Improved Rate Limit Handling**:
+  - Enhanced error handling for 429 (Too Many Requests) errors
+  - Implemented exponential backoff retry strategy (2s, 4s, 8s delays)
+  - Added user-friendly error messages with retry button
+  - Better loading states to prevent duplicate requests
+  - Clear indication when rate limits are hit
+
+### v0.13 Updates
 - **Team Scorecard System Fixes & Enhancements**:
   - Fixed scorecard not updating by implementing automatic fixture status management
   - Added logic to mark fixtures as 'completed' when all matches finish
