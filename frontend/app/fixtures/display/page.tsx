@@ -264,10 +264,10 @@ function FixtureDisplayContent() {
       roundMatches[i] = matches.filter(m => m.round === i).sort((a, b) => a.matchNumber - b.matchNumber);
     }
 
-    const matchHeight = fixture.participantType === 'player' ? 90 : 75;
+    const matchHeight = fixture.participantType === 'player' ? 123 : 108;
     const matchWidth = 200;
-    const roundGap = 80;
-    const matchVerticalGap = 15;
+    const roundGap = 100;
+    const matchVerticalGap = 25;
     const totalHeight = Math.pow(2, rounds - 1) * (matchHeight + matchVerticalGap);
 
     // Calculate match positions
