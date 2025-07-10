@@ -148,6 +148,12 @@ export default function EditableKnockoutBracket({
     const activeData = active.data.current;
     const overId = over.id as string;
     
+    if (!activeData) {
+      setActiveId(null);
+      setActiveData(null);
+      return;
+    }
+    
     // Parse the over ID to get match and position
     const [targetMatchId, targetPosition] = overId.split('-');
     
