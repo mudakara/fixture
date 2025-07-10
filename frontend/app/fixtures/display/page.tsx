@@ -72,10 +72,12 @@ function FixtureDisplayContent() {
   const [events, setEvents] = useState<Event[]>([]);
   const [selectedEventId, setSelectedEventId] = useState<string>('');
   const [fixtures, setFixtures] = useState<FixtureWithDetails[]>([]);
+  const [selectedFixtureIndex, setSelectedFixtureIndex] = useState<number>(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [refreshInterval, setRefreshInterval] = useState(30); // seconds
+  const [autoCycleInterval, setAutoCycleInterval] = useState<number>(0); // 0 means off
   const [teamMaps, setTeamMaps] = useState<{ [fixtureId: string]: Map<string, string> }>({});
 
   // Fetch events on component mount
@@ -83,16 +85,34 @@ function FixtureDisplayContent() {
     fetchEvents();
   }, []);
 
+  // Create a stable callback for fetching fixtures
+  const fetchFixturesCallback = useCallback(() => {
+    if (selectedEventId) {
+      fetchFixtures(selectedEventId);
+    }
+  }, [selectedEventId]);
+
   // Auto-refresh functionality
   useEffect(() => {
     if (!autoRefresh || !selectedEventId) return;
 
     const interval = setInterval(() => {
-      fetchFixtures(selectedEventId);
+      fetchFixturesCallback();
     }, refreshInterval * 1000);
 
     return () => clearInterval(interval);
-  }, [autoRefresh, refreshInterval, selectedEventId]);
+  }, [autoRefresh, refreshInterval, selectedEventId, fetchFixturesCallback]);
+
+  // Auto-cycle fixtures functionality
+  useEffect(() => {
+    if (autoCycleInterval === 0 || fixtures.length <= 1) return;
+
+    const interval = setInterval(() => {
+      setSelectedFixtureIndex((prev) => (prev + 1) % fixtures.length);
+    }, autoCycleInterval * 1000);
+
+    return () => clearInterval(interval);
+  }, [autoCycleInterval, fixtures.length]);
 
   // Fetch fixtures when event is selected
   useEffect(() => {
@@ -189,6 +209,11 @@ function FixtureDisplayContent() {
       
       setFixtures(fixturesWithDetails);
       
+      // Reset selected fixture index if it's out of bounds
+      if (selectedFixtureIndex >= fixturesWithDetails.length) {
+        setSelectedFixtureIndex(0);
+      }
+      
       // Fetch team data for player fixtures
       await fetchTeamData(eventId, fixturesWithDetails);
     } catch (err: any) {
@@ -232,10 +257,10 @@ function FixtureDisplayContent() {
       roundMatches[i] = matches.filter(m => m.round === i).sort((a, b) => a.matchNumber - b.matchNumber);
     }
 
-    const matchHeight = fixture.participantType === 'player' ? 120 : 100;
-    const matchWidth = 240;
-    const roundGap = 80;
-    const matchVerticalGap = 20;
+    const matchHeight = fixture.participantType === 'player' ? 140 : 120;
+    const matchWidth = 280;
+    const roundGap = 100;
+    const matchVerticalGap = 30;
     const totalHeight = Math.pow(2, rounds - 1) * (matchHeight + matchVerticalGap);
 
     // Calculate match positions
@@ -405,15 +430,15 @@ function FixtureDisplayContent() {
                       
                       {/* Match card */}
                       <div
-                        className={`relative bg-white border rounded-lg p-2 shadow-sm ${
+                        className={`relative bg-white border-2 rounded-lg p-3 shadow-sm ${
                           isChampion ? 'border-2 border-yellow-400 bg-gradient-to-br from-yellow-50 to-white' :
-                          match.status === 'completed' ? 'border-green-300' : 'border-gray-300'
+                          match.status === 'completed' ? 'border-green-400' : 'border-gray-300'
                         }`}
                         style={{ height: `${matchHeight}px` }}
                       >
-                        <div className="flex justify-between items-center mb-1">
-                          <span className="text-xs text-gray-600">M{match.matchNumber}</span>
-                          <span className={`text-xs px-1.5 py-0.5 rounded-full ${
+                        <div className="flex justify-between items-center mb-2">
+                          <span className="text-sm text-gray-600 font-medium">M{match.matchNumber}</span>
+                          <span className={`text-sm px-2 py-1 rounded-full font-medium ${
                             match.status === 'completed' ? 'bg-green-100 text-green-800' :
                             match.status === 'in_progress' ? 'bg-yellow-100 text-yellow-800' :
                             'bg-gray-100 text-gray-800'
@@ -422,46 +447,46 @@ function FixtureDisplayContent() {
                           </span>
                         </div>
                         
-                        <div className="space-y-1">
-                          <div className={`flex justify-between items-center px-1.5 py-1 rounded text-xs ${
+                        <div className="space-y-2">
+                          <div className={`flex justify-between items-center px-2 py-2 rounded ${
                             match.winner && match.homeParticipant?._id === match.winner._id 
                               ? 'bg-green-100 border border-green-300' 
                               : ''
                           }`}>
                             <div className="flex flex-col flex-1 min-w-0">
-                              <span className="font-medium text-gray-900 truncate">
+                              <span className="font-semibold text-base text-gray-900 truncate">
                                 {match.homeParticipant?.name || match.homeParticipant?.displayName || 'TBD'}
                               </span>
                               {fixture.participantType === 'player' && getPlayerTeamName(fixture._id, match.homeParticipant) && (
-                                <span className="text-xs text-gray-500 italic truncate">
+                                <span className="text-sm text-gray-600 italic truncate">
                                   {getPlayerTeamName(fixture._id, match.homeParticipant)}
                                 </span>
                               )}
                             </div>
                             {match.homeScore !== undefined && (
-                              <span className="font-bold text-gray-900 ml-1">{match.homeScore}</span>
+                              <span className="font-bold text-xl text-gray-900 ml-2">{match.homeScore}</span>
                             )}
                           </div>
                           
-                          <div className="border-t border-gray-100"></div>
+                          <div className="border-t border-gray-200"></div>
                           
-                          <div className={`flex justify-between items-center px-1.5 py-1 rounded text-xs ${
+                          <div className={`flex justify-between items-center px-2 py-2 rounded ${
                             match.winner && match.awayParticipant?._id === match.winner._id 
                               ? 'bg-green-100 border border-green-300' 
                               : ''
                           }`}>
                             <div className="flex flex-col flex-1 min-w-0">
-                              <span className="font-medium text-gray-900 truncate">
+                              <span className="font-semibold text-base text-gray-900 truncate">
                                 {match.awayParticipant?.name || match.awayParticipant?.displayName || 'TBD'}
                               </span>
                               {fixture.participantType === 'player' && getPlayerTeamName(fixture._id, match.awayParticipant) && (
-                                <span className="text-xs text-gray-500 italic truncate">
+                                <span className="text-sm text-gray-600 italic truncate">
                                   {getPlayerTeamName(fixture._id, match.awayParticipant)}
                                 </span>
                               )}
                             </div>
                             {match.awayScore !== undefined && (
-                              <span className="font-bold text-gray-900 ml-1">{match.awayScore}</span>
+                              <span className="font-bold text-xl text-gray-900 ml-2">{match.awayScore}</span>
                             )}
                           </div>
                         </div>
@@ -546,8 +571,9 @@ function FixtureDisplayContent() {
                 
                 {/* Manual Refresh Button */}
                 <button
-                  onClick={() => selectedEventId && fetchFixtures(selectedEventId)}
-                  className="inline-flex items-center px-3 py-1.5 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                  onClick={fetchFixturesCallback}
+                  disabled={!selectedEventId}
+                  className="inline-flex items-center px-3 py-1.5 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <svg className="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -586,35 +612,96 @@ function FixtureDisplayContent() {
           )}
           
           {selectedEventId && fixtures.length > 0 && (
-            <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-              {fixtures.map((fixture) => (
-                <div key={fixture._id} className="bg-white rounded-lg shadow-sm overflow-hidden">
-                  <div className="border-b border-gray-200 px-4 py-3">
+            <div>
+              {/* Fixture Navigation */}
+              <div className="bg-white rounded-lg shadow-sm p-4 mb-6">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-4">
+                    <button
+                      onClick={() => setSelectedFixtureIndex(Math.max(0, selectedFixtureIndex - 1))}
+                      disabled={selectedFixtureIndex === 0}
+                      className="p-2 rounded-md bg-gray-100 hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                      </svg>
+                    </button>
+                    
+                    <div className="text-center">
+                      <p className="text-sm text-gray-600">Fixture {selectedFixtureIndex + 1} of {fixtures.length}</p>
+                      <select
+                        value={selectedFixtureIndex}
+                        onChange={(e) => setSelectedFixtureIndex(Number(e.target.value))}
+                        className="mt-1 block rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                      >
+                        {fixtures.map((fixture, index) => (
+                          <option key={fixture._id} value={index}>
+                            {fixture.sportGameId.title} - {fixture.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    
+                    <button
+                      onClick={() => setSelectedFixtureIndex(Math.min(fixtures.length - 1, selectedFixtureIndex + 1))}
+                      disabled={selectedFixtureIndex === fixtures.length - 1}
+                      className="p-2 rounded-md bg-gray-100 hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                      </svg>
+                    </button>
+                  </div>
+                  
+                  {/* Auto-cycle option */}
+                  <div className="flex items-center space-x-2">
+                    <label className="text-sm text-gray-700">Auto-cycle fixtures every:</label>
+                    <select
+                      value={autoCycleInterval}
+                      className="rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                      onChange={(e) => {
+                        const value = Number(e.target.value);
+                        setAutoCycleInterval(value);
+                      }}
+                    >
+                      <option value={0}>Off</option>
+                      <option value={30}>30 seconds</option>
+                      <option value={60}>1 minute</option>
+                      <option value={120}>2 minutes</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+              
+              {/* Single Fixture Display */}
+              {fixtures[selectedFixtureIndex] && (
+                <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+                  <div className="border-b border-gray-200 px-6 py-4">
                     <div className="flex items-center justify-between">
                       <div>
-                        <h3 className="text-lg font-semibold text-gray-900">
-                          {fixture.sportGameId.title}
+                        <h3 className="text-2xl font-bold text-gray-900">
+                          {fixtures[selectedFixtureIndex].sportGameId.title}
                         </h3>
-                        <p className="text-sm text-gray-600">
-                          {fixture.name} - {fixture.participantType === 'player' ? 'Individual' : 'Team'} Tournament
+                        <p className="text-lg text-gray-600 mt-1">
+                          {fixtures[selectedFixtureIndex].name} - {fixtures[selectedFixtureIndex].participantType === 'player' ? 'Individual' : 'Team'} Tournament
                         </p>
                       </div>
-                      <span className={`px-2.5 py-1 text-xs font-medium rounded-full ${
-                        fixture.status === 'completed' ? 'bg-green-100 text-green-800' :
-                        fixture.status === 'in_progress' ? 'bg-yellow-100 text-yellow-800' :
-                        fixture.status === 'scheduled' ? 'bg-blue-100 text-blue-800' :
+                      <span className={`px-4 py-2 text-sm font-medium rounded-full ${
+                        fixtures[selectedFixtureIndex].status === 'completed' ? 'bg-green-100 text-green-800' :
+                        fixtures[selectedFixtureIndex].status === 'in_progress' ? 'bg-yellow-100 text-yellow-800' :
+                        fixtures[selectedFixtureIndex].status === 'scheduled' ? 'bg-blue-100 text-blue-800' :
                         'bg-gray-100 text-gray-800'
                       }`}>
-                        {fixture.status}
+                        {fixtures[selectedFixtureIndex].status.replace('_', ' ').toUpperCase()}
                       </span>
                     </div>
                   </div>
                   
-                  <div className="p-4">
-                    {renderTournamentBracket(fixture)}
+                  <div className="p-6">
+                    {renderTournamentBracket(fixtures[selectedFixtureIndex])}
                   </div>
                 </div>
-              ))}
+              )}
             </div>
           )}
         </div>
