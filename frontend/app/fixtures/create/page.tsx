@@ -28,6 +28,8 @@ interface Team {
   _id: string;
   name: string;
   eventId: string | { _id: string; name: string; startDate: string; endDate: string };
+  captainId: string | { _id: string };
+  viceCaptainId: string | { _id: string };
 }
 
 interface Player {
@@ -196,6 +198,19 @@ function CreateFixtureContent() {
         player.role !== 'super_admin' && 
         player.role !== 'admin'
       );
+
+  // Helper function to get player's role in a team
+  const getPlayerRoleInTeam = (playerId: string, teamId: string): string | null => {
+    const team = teams.find(t => t._id === teamId);
+    if (!team) return null;
+    
+    const captainId = typeof team.captainId === 'string' ? team.captainId : team.captainId._id;
+    const viceCaptainId = typeof team.viceCaptainId === 'string' ? team.viceCaptainId : team.viceCaptainId._id;
+    
+    if (captainId === playerId) return 'C';
+    if (viceCaptainId === playerId) return 'VC';
+    return null;
+  };
 
   // Organize players by teams for the selected event
   const getPlayersByTeam = (): Array<{ teamId: string; teamName: string; players: Player[] }> => {
@@ -704,22 +719,32 @@ function CreateFixtureContent() {
                             )}
                           </div>
                           <div className="space-y-1">
-                            {players.map((player) => (
-                              <label
-                                key={player._id}
-                                className="flex items-center hover:bg-white rounded px-2 py-1 cursor-pointer transition-colors"
-                              >
-                                <input
-                                  type="checkbox"
-                                  checked={formData.participants.includes(player._id)}
-                                  onChange={() => handleParticipantToggle(player._id)}
-                                  className="h-4 w-4 text-indigo-600 border-gray-300 rounded"
-                                />
-                                <span className="ml-2 text-sm text-gray-700 truncate" title={player.name || player.displayName}>
-                                  {player.name || player.displayName}
-                                </span>
-                              </label>
-                            ))}
+                            {players.map((player) => {
+                              const role = getPlayerRoleInTeam(player._id, teamId);
+                              return (
+                                <label
+                                  key={player._id}
+                                  className="flex items-center hover:bg-white rounded px-2 py-1 cursor-pointer transition-colors"
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={formData.participants.includes(player._id)}
+                                    onChange={() => handleParticipantToggle(player._id)}
+                                    className="h-4 w-4 text-indigo-600 border-gray-300 rounded"
+                                  />
+                                  <span className="ml-2 text-sm text-gray-700 truncate flex items-center gap-1" title={player.name || player.displayName}>
+                                    {player.name || player.displayName}
+                                    {role && (
+                                      <span className={`text-xs font-semibold px-1.5 py-0.5 rounded ${
+                                        role === 'C' ? 'bg-indigo-100 text-indigo-700' : 'bg-purple-100 text-purple-700'
+                                      }`}>
+                                        {role}
+                                      </span>
+                                    )}
+                                  </span>
+                                </label>
+                              );
+                            })}
                           </div>
                         </div>
                       );
