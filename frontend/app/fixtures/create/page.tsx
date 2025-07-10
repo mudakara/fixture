@@ -48,6 +48,7 @@ function CreateFixtureContent() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [dataLoading, setDataLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [events, setEvents] = useState<Event[]>([]);
   const [sportGames, setSportGames] = useState<SportGame[]>([]);
   const [teams, setTeams] = useState<Team[]>([]);
@@ -87,20 +88,21 @@ function CreateFixtureContent() {
     fetchData();
   }, [canCreateFixtures, router]);
 
-  const fetchData = async () => {
+  const fetchData = async (retryCount = 0) => {
     setDataLoading(true);
+    setError(null); // Clear any previous errors
     try {
-      // Fetch data sequentially with small delays to avoid rate limiting
+      // Fetch data sequentially with increased delays to avoid rate limiting
       const eventsRes = await axios.get(`${process.env.NEXT_PUBLIC_API_URL}/events`, { withCredentials: true });
       setEvents(eventsRes.data.events);
       
-      // Small delay between requests
-      await new Promise(resolve => setTimeout(resolve, 100));
+      // Increased delay between requests
+      await new Promise(resolve => setTimeout(resolve, 300));
       
       const sportGamesRes = await axios.get(`${process.env.NEXT_PUBLIC_API_URL}/sportgames`, { withCredentials: true });
       setSportGames(sportGamesRes.data.sportGames);
       
-      await new Promise(resolve => setTimeout(resolve, 100));
+      await new Promise(resolve => setTimeout(resolve, 300));
       
       const playersRes = await axios.get(`${process.env.NEXT_PUBLIC_API_URL}/users`, { withCredentials: true });
       // Filter to exclude super_admin and admin on the frontend
@@ -110,14 +112,28 @@ function CreateFixtureContent() {
         user.role !== 'admin'
       ));
       
-      await new Promise(resolve => setTimeout(resolve, 100));
+      await new Promise(resolve => setTimeout(resolve, 300));
       
       const teamsRes = await axios.get(`${process.env.NEXT_PUBLIC_API_URL}/teams`, { withCredentials: true });
       setTeams(teamsRes.data.teams || []);
+      
+      // Clear error on success
+      setError(null);
     } catch (error: any) {
       console.error('Failed to fetch data:', error);
       if (error.response?.status === 429) {
-        alert('Too many requests. Please wait a moment and refresh the page.');
+        if (retryCount < 3) {
+          // Exponential backoff: wait longer with each retry
+          const waitTime = Math.pow(2, retryCount + 1) * 1000; // 2s, 4s, 8s
+          console.log(`Rate limited. Retrying in ${waitTime/1000} seconds...`);
+          setError(`Rate limited. Retrying in ${waitTime/1000} seconds...`);
+          await new Promise(resolve => setTimeout(resolve, waitTime));
+          return fetchData(retryCount + 1);
+        } else {
+          setError('Too many requests. Please refresh the page in a few moments.');
+        }
+      } else {
+        setError(error.response?.data?.error || 'Failed to load data');
       }
     } finally {
       setDataLoading(false);
@@ -263,6 +279,31 @@ function CreateFixtureContent() {
               <div className="text-center">
                 <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto"></div>
                 <p className="mt-4 text-gray-600">Loading fixture data...</p>
+              </div>
+            </div>
+          ) : error ? (
+            <div className="bg-red-50 border border-red-200 rounded-md p-4">
+              <div className="flex">
+                <div className="flex-shrink-0">
+                  <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                  </svg>
+                </div>
+                <div className="ml-3">
+                  <h3 className="text-sm font-medium text-red-800">Error loading data</h3>
+                  <div className="mt-2 text-sm text-red-700">
+                    <p>{error}</p>
+                  </div>
+                  <div className="mt-4">
+                    <button
+                      type="button"
+                      onClick={() => fetchData()}
+                      className="text-sm font-medium text-red-600 hover:text-red-500"
+                    >
+                      Try again
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
           ) : (
