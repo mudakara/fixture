@@ -247,11 +247,11 @@ function FixtureDisplayContent() {
     
     if (!matches || matches.length === 0) {
       return (
-        <div className="bg-gray-100 rounded-lg p-8 text-center">
-          <svg className="mx-auto h-16 w-16 text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <div className="bg-gray-100 rounded-md p-6 text-center border border-gray-400">
+          <svg className="mx-auto h-10 w-10 text-gray-600 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
-          <p className="text-xl font-semibold text-gray-600">No matches scheduled</p>
+          <p className="text-sm font-bold text-gray-900">No matches scheduled</p>
         </div>
       );
     }
@@ -264,10 +264,10 @@ function FixtureDisplayContent() {
       roundMatches[i] = matches.filter(m => m.round === i).sort((a, b) => a.matchNumber - b.matchNumber);
     }
 
-    const matchHeight = fixture.participantType === 'player' ? 180 : 160;
-    const matchWidth = 340;
-    const roundGap = 140;
-    const matchVerticalGap = 40;
+    const matchHeight = fixture.participantType === 'player' ? 120 : 100;
+    const matchWidth = 260;
+    const roundGap = 100;
+    const matchVerticalGap = 20;
     const totalHeight = Math.pow(2, rounds - 1) * (matchHeight + matchVerticalGap);
 
     // Calculate match positions
@@ -315,7 +315,7 @@ function FixtureDisplayContent() {
             
             return (
               <div key={round} className="absolute" style={{ left: `${roundIndex * (matchWidth + roundGap)}px` }}>
-                <h4 className="text-lg font-bold text-gray-800 mb-3 text-center bg-white px-4 py-2 rounded-lg shadow-sm inline-block w-full">
+                <h4 className="text-sm font-black text-gray-900 mb-2 text-center">
                   {roundNumber === rounds ? 'Final' : 
                    roundNumber === rounds - 1 && rounds > 1 ? 'Semi-Finals' :
                    roundNumber === rounds - 2 && rounds > 2 ? 'Quarter-Finals' :
@@ -332,8 +332,8 @@ function FixtureDisplayContent() {
                     <div key={match._id} className="absolute" style={{ top: `${topPosition + 30}px`, width: `${matchWidth}px` }}>
                       {/* Winner badge for final match */}
                       {isChampion && (
-                        <div className="absolute -top-8 left-1/2 transform -translate-x-1/2 flex items-center space-x-2 bg-gradient-to-r from-yellow-400 to-amber-400 text-white px-4 py-2 rounded-full text-base font-black shadow-lg">
-                          <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
+                        <div className="absolute -top-5 left-1/2 transform -translate-x-1/2 flex items-center space-x-1 bg-gradient-to-r from-yellow-500 to-amber-500 text-white px-3 py-1 rounded-full text-xs font-black shadow-md">
+                          <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
                             <path d="M5 3a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2V5a2 2 0 00-2-2H5zM5 11a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2v-2a2 2 0 00-2-2H5zM11 5a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V5zM14 11a1 1 0 011 1v1h1a1 1 0 110 2h-1v1a1 1 0 11-2 0v-1h-1a1 1 0 110-2h1v-1a1 1 0 011-1z"/>
                           </svg>
                           <span>CHAMPION</span>
@@ -455,15 +455,15 @@ function FixtureDisplayContent() {
                       
                       {/* Match card */}
                       <div
-                        className={`relative bg-white border-3 rounded-xl p-4 shadow-xl ${
-                          isChampion ? 'border-4 border-yellow-500 bg-gradient-to-br from-yellow-100 via-yellow-50 to-white shadow-yellow-200' :
-                          match.status === 'completed' ? 'border-green-500 shadow-green-200' : 'border-gray-400 shadow-gray-300'
+                        className={`relative bg-white border-2 rounded-lg p-2 shadow-md ${
+                          isChampion ? 'border-3 border-yellow-500 bg-gradient-to-br from-yellow-50 to-white shadow-yellow-200' :
+                          match.status === 'completed' ? 'border-green-600' : 'border-gray-500'
                         }`}
                         style={{ height: `${matchHeight}px` }}
                       >
-                        <div className="flex justify-between items-center mb-3">
-                          <span className="text-base font-bold text-gray-700">M{match.matchNumber}</span>
-                          <span className={`text-base px-3 py-1.5 rounded-full font-bold shadow-sm ${
+                        <div className="flex justify-between items-center mb-1">
+                          <span className="text-xs font-black text-gray-800">M{match.matchNumber}</span>
+                          <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${
                             match.status === 'completed' ? 'bg-green-200 text-green-900' :
                             match.status === 'in_progress' ? 'bg-yellow-200 text-yellow-900' :
                             'bg-gray-200 text-gray-800'
@@ -473,45 +473,45 @@ function FixtureDisplayContent() {
                         </div>
                         
                         <div className="space-y-2">
-                          <div className={`flex justify-between items-center px-3 py-2.5 rounded-lg transition-all ${
+                          <div className={`flex justify-between items-center px-2 py-1.5 rounded-md transition-all ${
                             match.winner && match.homeParticipant?._id === match.winner._id 
-                              ? 'bg-green-200 border-2 border-green-400 shadow-sm' 
-                              : 'bg-gray-50 border border-gray-300'
+                              ? 'bg-green-100 border border-green-500' 
+                              : 'bg-gray-50 border border-gray-400'
                           }`}>
                             <div className="flex flex-col flex-1 min-w-0">
-                              <span className="font-bold text-lg text-gray-900 truncate">
+                              <span className="font-bold text-sm text-gray-900 truncate">
                                 {match.homeParticipant?.name || match.homeParticipant?.displayName || 'TBD'}
                               </span>
                               {fixture.participantType === 'player' && getPlayerTeamName(fixture._id, match.homeParticipant) && (
-                                <span className="text-base text-gray-700 italic truncate">
+                                <span className="text-xs text-gray-700 italic truncate">
                                   {getPlayerTeamName(fixture._id, match.homeParticipant)}
                                 </span>
                               )}
                             </div>
                             {match.homeScore !== undefined && (
-                              <span className="font-black text-2xl text-gray-900 ml-3">{match.homeScore}</span>
+                              <span className="font-black text-lg text-gray-900 ml-2">{match.homeScore}</span>
                             )}
                           </div>
                           
-                          <div className="border-t-2 border-gray-300 my-1"></div>
+                          <div className="border-t border-gray-400 my-0.5"></div>
                           
-                          <div className={`flex justify-between items-center px-3 py-2.5 rounded-lg transition-all ${
+                          <div className={`flex justify-between items-center px-2 py-1.5 rounded-md transition-all ${
                             match.winner && match.awayParticipant?._id === match.winner._id 
-                              ? 'bg-green-200 border-2 border-green-400 shadow-sm' 
-                              : 'bg-gray-50 border border-gray-300'
+                              ? 'bg-green-100 border border-green-500' 
+                              : 'bg-gray-50 border border-gray-400'
                           }`}>
                             <div className="flex flex-col flex-1 min-w-0">
-                              <span className="font-bold text-lg text-gray-900 truncate">
+                              <span className="font-bold text-sm text-gray-900 truncate">
                                 {match.awayParticipant?.name || match.awayParticipant?.displayName || 'TBD'}
                               </span>
                               {fixture.participantType === 'player' && getPlayerTeamName(fixture._id, match.awayParticipant) && (
-                                <span className="text-base text-gray-700 italic truncate">
+                                <span className="text-xs text-gray-700 italic truncate">
                                   {getPlayerTeamName(fixture._id, match.awayParticipant)}
                                 </span>
                               )}
                             </div>
                             {match.awayScore !== undefined && (
-                              <span className="font-black text-2xl text-gray-900 ml-3">{match.awayScore}</span>
+                              <span className="font-black text-lg text-gray-900 ml-2">{match.awayScore}</span>
                             )}
                           </div>
                         </div>
@@ -550,222 +550,193 @@ function FixtureDisplayContent() {
       <AuthGuard allowedRoles={['super_admin', 'admin', 'captain', 'vicecaptain', 'player']}>
         <Header />
         
-        <div className="max-w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          {/* Controls Bar */}
-          <div className="bg-gradient-to-r from-indigo-50 to-blue-50 rounded-xl shadow-lg p-6 mb-6 border border-indigo-200">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Left Section - Event Selection */}
-              <div className="space-y-4">
-                <h1 className="text-3xl font-bold text-gray-900 mb-4">Tournament Display</h1>
-                
-                <div className="bg-white rounded-lg p-4 shadow-sm border border-gray-200">
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Select Event
-                  </label>
-                  <select
-                    value={selectedEventId}
-                    onChange={(e) => setSelectedEventId(e.target.value)}
-                    className="block w-full px-4 py-3 text-lg rounded-lg border-2 border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500 bg-white"
-                  >
-                    <option value="">-- Choose an Event --</option>
-                    {events.map((event) => (
-                      <option key={event._id} value={event._id}>
-                        {event.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+        <div className="max-w-full mx-auto px-2 py-2">
+          {/* Compact Controls Bar */}
+          <div className="bg-white rounded-lg shadow-md p-3 mb-3 border border-gray-300">
+            <div className="flex flex-wrap items-center gap-4">
+              {/* Event Selection */}
+              <div className="flex-1 min-w-[200px]">
+                <select
+                  value={selectedEventId}
+                  onChange={(e) => setSelectedEventId(e.target.value)}
+                  className="block w-full px-3 py-2 text-base font-semibold text-gray-900 rounded-md border-2 border-gray-400 shadow-sm focus:border-indigo-600 focus:ring-2 focus:ring-indigo-600 bg-white"
+                >
+                  <option value="" className="text-gray-600">-- Select Event --</option>
+                  {events.map((event) => (
+                    <option key={event._id} value={event._id} className="text-gray-900 font-medium">
+                      {event.name}
+                    </option>
+                  ))}
+                </select>
               </div>
               
-              {/* Right Section - Refresh Controls */}
-              <div className="space-y-4">
-                <h2 className="text-xl font-semibold text-gray-800 mb-4">Refresh Settings</h2>
+              {/* Refresh Controls */}
+              <div className="flex items-center gap-3">
+                {/* Auto Refresh Toggle */}
+                <label className="flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={autoRefresh}
+                    onChange={(e) => setAutoRefresh(e.target.checked)}
+                    className="w-4 h-4 rounded border-gray-400 text-indigo-600 focus:ring-2 focus:ring-indigo-600"
+                  />
+                  <span className="ml-2 text-sm font-bold text-gray-900">Auto-refresh</span>
+                </label>
                 
-                <div className="bg-white rounded-lg p-4 shadow-sm border border-gray-200 space-y-4">
-                  {/* Auto Refresh Toggle */}
-                  <div className="flex items-center justify-between">
-                    <label className="flex items-center space-x-3 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={autoRefresh}
-                        onChange={(e) => setAutoRefresh(e.target.checked)}
-                        className="w-5 h-5 rounded border-gray-300 text-indigo-600 focus:ring-2 focus:ring-indigo-500"
-                      />
-                      <span className="text-lg font-medium text-gray-700">Auto-refresh data</span>
-                    </label>
-                    
-                    {/* Manual Refresh Button */}
-                    <button
-                      onClick={fetchFixturesCallback}
-                      disabled={!selectedEventId}
-                      className="inline-flex items-center px-4 py-2.5 border-2 border-indigo-600 shadow-sm text-base font-medium rounded-lg text-indigo-600 bg-white hover:bg-indigo-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                    >
-                      <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                      </svg>
-                      Refresh Now
-                    </button>
-                  </div>
-                  
-                  {/* Refresh Interval */}
-                  {autoRefresh && (
-                    <div>
-                      <label className="block text-sm font-semibold text-gray-700 mb-2">
-                        Refresh Interval
-                      </label>
-                      <select
-                        value={refreshInterval}
-                        onChange={(e) => setRefreshInterval(Number(e.target.value))}
-                        className="block w-full px-4 py-2.5 text-base rounded-lg border-2 border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500 bg-white"
+                {/* Refresh Interval */}
+                {autoRefresh && (
+                  <select
+                    value={refreshInterval}
+                    onChange={(e) => setRefreshInterval(Number(e.target.value))}
+                    className="px-2 py-1.5 text-sm font-semibold text-gray-900 rounded-md border-2 border-gray-400 bg-white"
                       >
-                        <option value={15}>Every 15 seconds</option>
-                        <option value={30}>Every 30 seconds</option>
-                        <option value={60}>Every 1 minute</option>
-                        <option value={120}>Every 2 minutes</option>
-                        <option value={300}>Every 5 minutes</option>
-                      </select>
-                    </div>
-                  )}
-                </div>
+                    <option value={15}>15s</option>
+                    <option value={30}>30s</option>
+                    <option value={60}>1m</option>
+                    <option value={120}>2m</option>
+                    <option value={300}>5m</option>
+                  </select>
+                )}
+                
+                {/* Manual Refresh Button */}
+                <button
+                  onClick={fetchFixturesCallback}
+                  disabled={!selectedEventId}
+                  className="px-3 py-1.5 border-2 border-indigo-600 text-sm font-bold rounded-md text-indigo-700 bg-white hover:bg-indigo-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  <svg className="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                  Refresh
+                </button>
               </div>
             </div>
           </div>
           
           {/* Error Message */}
           {error && (
-            <div className="bg-red-100 border-2 border-red-400 rounded-xl shadow-lg p-6 mb-6">
-              <div className="flex items-center">
-                <svg className="w-6 h-6 text-red-600 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                <p className="text-lg font-medium text-red-800">{error}</p>
-              </div>
+            <div className="bg-red-100 border border-red-500 rounded-md p-3 mb-3 flex items-center">
+              <svg className="w-5 h-5 text-red-700 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <p className="text-sm font-bold text-red-900">{error}</p>
             </div>
           )}
           
           {/* No Event Selected */}
           {!selectedEventId && (
-            <div className="bg-gradient-to-br from-gray-100 to-gray-200 rounded-xl shadow-lg p-12 text-center">
-              <svg className="mx-auto h-20 w-20 text-gray-500 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div className="bg-gray-100 rounded-lg p-8 text-center border border-gray-400">
+              <svg className="mx-auto h-12 w-12 text-gray-600 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
               </svg>
-              <p className="text-xl font-semibold text-gray-700">No Event Selected</p>
-              <p className="mt-2 text-lg text-gray-600">Please select an event from the dropdown above to display tournaments</p>
+              <p className="text-base font-bold text-gray-900">No Event Selected</p>
+              <p className="mt-1 text-sm font-medium text-gray-700">Please select an event from the dropdown above</p>
             </div>
           )}
           
           {/* Fixtures Grid */}
           {selectedEventId && fixtures.length === 0 && (
-            <div className="bg-gradient-to-br from-yellow-50 to-orange-50 rounded-xl shadow-lg p-12 text-center border-2 border-orange-200">
-              <svg className="mx-auto h-20 w-20 text-orange-500 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div className="bg-yellow-50 rounded-lg p-8 text-center border border-yellow-500">
+              <svg className="mx-auto h-12 w-12 text-yellow-700 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
               </svg>
-              <p className="text-xl font-semibold text-orange-700">No Tournaments Found</p>
-              <p className="mt-2 text-lg text-orange-600">No knockout tournaments are available for this event</p>
+              <p className="text-base font-bold text-gray-900">No Tournaments Found</p>
+              <p className="mt-1 text-sm font-medium text-gray-700">No knockout tournaments available for this event</p>
             </div>
           )}
           
           {selectedEventId && fixtures.length > 0 && (
             <div>
-              {/* Fixture Navigation */}
-              <div className="bg-gradient-to-r from-gray-50 to-gray-100 rounded-xl shadow-lg p-6 mb-6 border border-gray-300">
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  {/* Navigation Controls */}
-                  <div className="bg-white rounded-lg p-4 shadow-sm border border-gray-200">
-                    <label className="block text-sm font-semibold text-gray-700 mb-3">Navigate Fixtures</label>
-                    <div className="flex items-center space-x-4">
-                      <button
-                        onClick={() => setSelectedFixtureIndex(Math.max(0, selectedFixtureIndex - 1))}
-                        disabled={selectedFixtureIndex === 0}
-                        className="p-3 rounded-lg bg-indigo-100 hover:bg-indigo-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                      >
-                        <svg className="w-6 h-6 text-indigo-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                        </svg>
-                      </button>
-                      
-                      <div className="flex-1 text-center">
-                        <p className="text-base font-medium text-gray-700 mb-2">
-                          Fixture {selectedFixtureIndex + 1} of {fixtures.length}
-                        </p>
-                        <select
-                          value={selectedFixtureIndex}
-                          onChange={(e) => setSelectedFixtureIndex(Number(e.target.value))}
-                          className="w-full px-4 py-2.5 text-base rounded-lg border-2 border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500 bg-white"
-                        >
-                          {fixtures.map((fixture, index) => (
-                            <option key={fixture._id} value={index}>
-                              {fixture.sportGameId.title} - {fixture.name}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                      
-                      <button
-                        onClick={() => setSelectedFixtureIndex(Math.min(fixtures.length - 1, selectedFixtureIndex + 1))}
-                        disabled={selectedFixtureIndex === fixtures.length - 1}
-                        className="p-3 rounded-lg bg-indigo-100 hover:bg-indigo-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                      >
-                        <svg className="w-6 h-6 text-indigo-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                        </svg>
-                      </button>
-                    </div>
+              {/* Compact Fixture Navigation */}
+              <div className="bg-white rounded-lg shadow-md p-3 mb-3 border border-gray-300">
+                <div className="flex flex-wrap items-center gap-3">
+                  {/* Previous/Next Navigation */}
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setSelectedFixtureIndex(Math.max(0, selectedFixtureIndex - 1))}
+                      disabled={selectedFixtureIndex === 0}
+                      className="p-2 rounded-md bg-gray-200 hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    >
+                      <svg className="w-4 h-4 text-gray-800" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                      </svg>
+                    </button>
+                    
+                    <span className="text-sm font-bold text-gray-900">
+                      {selectedFixtureIndex + 1}/{fixtures.length}
+                    </span>
+                    
+                    <button
+                      onClick={() => setSelectedFixtureIndex(Math.min(fixtures.length - 1, selectedFixtureIndex + 1))}
+                      disabled={selectedFixtureIndex === fixtures.length - 1}
+                      className="p-2 rounded-md bg-gray-200 hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    >
+                      <svg className="w-4 h-4 text-gray-800" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                      </svg>
+                    </button>
                   </div>
                   
-                  {/* Auto-cycle Controls */}
-                  <div className="bg-white rounded-lg p-4 shadow-sm border border-gray-200">
-                    <label className="block text-sm font-semibold text-gray-700 mb-3">Auto-Cycle Settings</label>
-                    <div className="space-y-3">
-                      <p className="text-sm text-gray-600">Automatically rotate through all fixtures</p>
-                      <select
-                        value={autoCycleInterval}
-                        className="w-full px-4 py-2.5 text-base rounded-lg border-2 border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500 bg-white"
-                        onChange={(e) => {
-                          const value = Number(e.target.value);
-                          setAutoCycleInterval(value);
-                        }}
-                      >
-                        <option value={0}>Disabled</option>
-                        <option value={30}>Every 30 seconds</option>
-                        <option value={60}>Every 1 minute</option>
-                        <option value={120}>Every 2 minutes</option>
-                      </select>
-                      {autoCycleInterval > 0 && (
-                        <p className="text-sm text-green-600 font-medium">
-                          ✓ Auto-cycling active
-                        </p>
-                      )}
-                    </div>
+                  {/* Fixture Selector */}
+                  <div className="flex-1 min-w-[200px]">
+                    <select
+                      value={selectedFixtureIndex}
+                      onChange={(e) => setSelectedFixtureIndex(Number(e.target.value))}
+                      className="w-full px-3 py-2 text-sm font-semibold text-gray-900 rounded-md border-2 border-gray-400 bg-white"
+                    >
+                      {fixtures.map((fixture, index) => (
+                        <option key={fixture._id} value={index} className="text-gray-900">
+                          {fixture.sportGameId.title} - {fixture.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  
+                  {/* Auto-cycle Control */}
+                  <div className="flex items-center gap-2">
+                    <label className="text-sm font-bold text-gray-900">Auto-cycle:</label>
+                    <select
+                      value={autoCycleInterval}
+                      className="px-2 py-1.5 text-sm font-semibold text-gray-900 rounded-md border-2 border-gray-400 bg-white"
+                      onChange={(e) => setAutoCycleInterval(Number(e.target.value))}
+                    >
+                      <option value={0}>Off</option>
+                      <option value={30}>30s</option>
+                      <option value={60}>1m</option>
+                      <option value={120}>2m</option>
+                    </select>
+                    {autoCycleInterval > 0 && (
+                      <span className="text-green-700 font-bold text-sm">✓</span>
+                    )}
                   </div>
                 </div>
               </div>
               
               {/* Single Fixture Display */}
               {fixtures[selectedFixtureIndex] && (
-                <div className="bg-white rounded-xl shadow-2xl overflow-hidden border-2 border-gray-300">
-                  <div className="bg-gradient-to-r from-indigo-600 to-purple-600 px-8 py-6">
+                <div className="bg-white rounded-lg shadow-lg overflow-hidden border border-gray-400">
+                  <div className="bg-gradient-to-r from-indigo-700 to-purple-700 px-4 py-3">
                     <div className="flex items-center justify-between">
                       <div>
-                        <h3 className="text-3xl font-bold text-white">
+                        <h3 className="text-2xl font-black text-white">
                           {fixtures[selectedFixtureIndex].sportGameId.title}
                         </h3>
-                        <p className="text-xl text-indigo-100 mt-2">
+                        <p className="text-base font-semibold text-indigo-100 mt-1">
                           {fixtures[selectedFixtureIndex].name} - {fixtures[selectedFixtureIndex].participantType === 'player' ? 'Individual' : 'Team'} Tournament
                         </p>
                       </div>
-                      <span className={`px-6 py-3 text-lg font-bold rounded-full shadow-lg ${
-                        fixtures[selectedFixtureIndex].status === 'completed' ? 'bg-green-500 text-white' :
-                        fixtures[selectedFixtureIndex].status === 'in_progress' ? 'bg-yellow-500 text-white' :
-                        fixtures[selectedFixtureIndex].status === 'scheduled' ? 'bg-blue-500 text-white' :
-                        'bg-gray-500 text-white'
+                      <span className={`px-4 py-2 text-sm font-black rounded-full shadow-md ${
+                        fixtures[selectedFixtureIndex].status === 'completed' ? 'bg-green-600 text-white' :
+                        fixtures[selectedFixtureIndex].status === 'in_progress' ? 'bg-yellow-600 text-white' :
+                        fixtures[selectedFixtureIndex].status === 'scheduled' ? 'bg-blue-600 text-white' :
+                        'bg-gray-600 text-white'
                       }`}>
                         {fixtures[selectedFixtureIndex].status.replace('_', ' ').toUpperCase()}
                       </span>
                     </div>
                   </div>
                   
-                  <div className="p-8 bg-gradient-to-br from-gray-50 to-gray-100">
+                  <div className="p-4 bg-gray-50">
                     {renderTournamentBracket(fixtures[selectedFixtureIndex])}
                   </div>
                 </div>
