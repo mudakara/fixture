@@ -381,10 +381,10 @@ function FixtureDisplayContent() {
                                 key="dot-start"
                                 className="absolute"
                                 style={{
-                                  left: `${matchWidth - 2}px`,
-                                  top: `${matchHeight / 2 - 3}px`,
-                                  width: '6px',
-                                  height: '6px',
+                                  left: `${matchWidth - 3}px`,
+                                  top: `${matchHeight / 2 - 4}px`,
+                                  width: '8px',
+                                  height: '8px',
                                   borderRadius: '50%',
                                   backgroundColor: match.winner ? '#10b981' : '#9ca3af',
                                   border: '1px solid white',
