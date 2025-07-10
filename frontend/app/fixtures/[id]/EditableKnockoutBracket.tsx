@@ -45,6 +45,7 @@ interface Props {
   matches: Match[];
   participants: Participant[];
   onMatchUpdate: (matchId: string, updates: any) => Promise<void>;
+  onMatchDelete?: (matchId: string) => Promise<void>;
   fixture: any;
   teamMap: Map<string, string>;
   getPlayerTeamName: (participant: any) => string | null;
@@ -111,6 +112,7 @@ export default function EditableKnockoutBracket({
   matches,
   participants,
   onMatchUpdate,
+  onMatchDelete,
   fixture,
   teamMap,
   getPlayerTeamName,
@@ -313,26 +315,139 @@ export default function EditableKnockoutBracket({
                      `Round ${round}`}
                   </h3>
                   
-                  {roundMatchList.map((match) => {
+                  {roundMatchList.map((match, matchIndex) => {
                     const centerY = matchPositions[match._id] || 0;
                     const topPosition = centerY - matchHeight / 2;
                     const isByeMatch = (match.homeParticipant && !match.awayParticipant) || (!match.homeParticipant && match.awayParticipant);
                     
+                    const canDelete = !match.homeParticipant && !match.awayParticipant && onMatchDelete;
+                    
                     return (
                       <div key={match._id} className="absolute" style={{ top: `${topPosition + 40}px`, width: `${matchWidth}px` }}>
+                        {/* Connecting lines */}
+                        {roundNumber < rounds && match.nextMatchId && (
+                          <>
+                            {(() => {
+                              const nextRoundMatches = roundMatches[roundNumber + 1] || [];
+                              const nextMatch = nextRoundMatches.find(nm => nm._id === match.nextMatchId);
+                              
+                              if (!nextMatch || (!match.homeParticipant && !match.awayParticipant)) {
+                                return null; // Don't draw lines for empty matches
+                              }
+                              
+                              const currentY = centerY;
+                              const nextY = matchPositions[nextMatch._id];
+                              
+                              if (nextY === undefined) return null;
+                              
+                              // Check if sibling match exists and has participants
+                              const siblingIndex = matchIndex % 2 === 0 ? matchIndex + 1 : matchIndex - 1;
+                              const siblingMatch = roundMatchList[siblingIndex];
+                              const siblingHasParticipants = siblingMatch && (siblingMatch.homeParticipant || siblingMatch.awayParticipant);
+                              
+                              const elements = [];
+                              
+                              // Horizontal line from match
+                              elements.push(
+                                <div
+                                  key="h-line"
+                                  className="absolute"
+                                  style={{
+                                    left: `${matchWidth}px`,
+                                    top: `${matchHeight / 2 - 1}px`,
+                                    width: `${roundGap / 2}px`,
+                                    height: '2px',
+                                    backgroundColor: '#d1d5db',
+                                  }}
+                                />
+                              );
+                              
+                              if (siblingMatch && siblingHasParticipants) {
+                                const siblingY = matchPositions[siblingMatch._id];
+                                const topY = Math.min(currentY, siblingY);
+                                const bottomY = Math.max(currentY, siblingY);
+                                const midY = (topY + bottomY) / 2;
+                                const isTopMatch = currentY < siblingY;
+                                
+                                if (isTopMatch) {
+                                  // Vertical line down
+                                  elements.push(
+                                    <div
+                                      key="v-line"
+                                      className="absolute"
+                                      style={{
+                                        left: `${matchWidth + roundGap / 2 - 1}px`,
+                                        top: `${matchHeight / 2}px`,
+                                        width: '2px',
+                                        height: `${midY - currentY}px`,
+                                        backgroundColor: '#d1d5db',
+                                      }}
+                                    />
+                                  );
+                                  
+                                  // Horizontal line to next match
+                                  elements.push(
+                                    <div
+                                      key="h-line-2"
+                                      className="absolute"
+                                      style={{
+                                        left: `${matchWidth + roundGap / 2}px`,
+                                        top: `${matchHeight / 2 + (midY - currentY) - 1}px`,
+                                        width: `${roundGap / 2}px`,
+                                        height: '2px',
+                                        backgroundColor: '#d1d5db',
+                                      }}
+                                    />
+                                  );
+                                } else {
+                                  // Vertical line up
+                                  elements.push(
+                                    <div
+                                      key="v-line"
+                                      className="absolute"
+                                      style={{
+                                        left: `${matchWidth + roundGap / 2 - 1}px`,
+                                        top: `${midY - currentY + matchHeight / 2}px`,
+                                        width: '2px',
+                                        height: `${currentY - midY}px`,
+                                        backgroundColor: '#d1d5db',
+                                      }}
+                                    />
+                                  );
+                                }
+                              }
+                              
+                              return <>{elements}</>;
+                            })()}
+                          </>
+                        )}
+                        
                         <div
                           className={`relative bg-white border-2 ${isByeMatch ? 'border-gray-300' : 'border-orange-300'} rounded-lg p-3 shadow-md`}
                           style={{ height: `${matchHeight}px` }}
                         >
                           <div className="flex justify-between items-center mb-2">
                             <span className="text-xs font-medium text-gray-600">Match {match.matchNumber}</span>
-                            <span className={`text-xs px-2 py-1 rounded-full ${
-                              match.status === 'completed' ? 'bg-green-100 text-green-800' :
-                              isByeMatch ? 'bg-gray-100 text-gray-800' :
-                              'bg-orange-100 text-orange-800'
-                            }`}>
-                              {isByeMatch ? 'Bye Match' : 'Editable'}
-                            </span>
+                            <div className="flex items-center space-x-2">
+                              <span className={`text-xs px-2 py-1 rounded-full ${
+                                match.status === 'completed' ? 'bg-green-100 text-green-800' :
+                                isByeMatch ? 'bg-gray-100 text-gray-800' :
+                                'bg-orange-100 text-orange-800'
+                              }`}>
+                                {isByeMatch ? 'Bye Match' : 'Editable'}
+                              </span>
+                              {canDelete && (
+                                <button
+                                  onClick={() => onMatchDelete(match._id)}
+                                  className="text-red-600 hover:text-red-800 p-1 rounded hover:bg-red-50 transition-colors"
+                                  title="Delete this match"
+                                >
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                  </svg>
+                                </button>
+                              )}
+                            </div>
                           </div>
                           
                           <div className="space-y-2">

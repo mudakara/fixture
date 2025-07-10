@@ -1422,6 +1422,76 @@ router.put('/:fixtureId/matches/:matchId/partners', authenticate, canManageFixtu
   }
 });
 
+// Delete a match
+router.delete('/:fixtureId/matches/:matchId', authenticate, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { fixtureId, matchId } = req.params;
+    const user = (req as any).user;
+    
+    // Check if user is admin or super admin
+    if (user?.role !== 'super_admin' && user?.role !== 'admin') {
+      res.status(403).json({ error: 'Only administrators can delete matches' });
+      return;
+    }
+    
+    // Check if fixture exists
+    const fixture = await Fixture.findById(fixtureId);
+    if (!fixture || !fixture.isActive) {
+      res.status(404).json({ error: 'Fixture not found' });
+      return;
+    }
+    
+    // Check if match exists
+    const match = await Match.findOne({ _id: matchId, fixtureId });
+    if (!match) {
+      res.status(404).json({ error: 'Match not found' });
+      return;
+    }
+    
+    // Only allow deletion of matches with no participants
+    if (match.homeParticipant || match.awayParticipant) {
+      res.status(400).json({ error: 'Cannot delete match with participants. Remove participants first.' });
+      return;
+    }
+    
+    // Delete the match
+    await Match.deleteOne({ _id: matchId });
+    
+    // Update any matches that reference this match
+    await Match.updateMany(
+      { previousMatchIds: matchId },
+      { $pull: { previousMatchIds: matchId } }
+    );
+    
+    // Create audit log
+    await AuditLog.create({
+      userId: user._id,
+      action: 'delete',
+      entity: 'match',
+      entityId: matchId,
+      details: {
+        fixtureId,
+        matchNumber: match.matchNumber,
+        round: match.round
+      }
+    });
+    
+    logger.info('Match deleted', {
+      userId: user._id,
+      matchId,
+      fixtureId
+    });
+    
+    res.json({
+      success: true,
+      message: 'Match deleted successfully'
+    });
+  } catch (error: any) {
+    logger.error('Error deleting match:', error);
+    res.status(500).json({ error: 'Failed to delete match' });
+  }
+});
+
 // Update fixture winners
 router.put('/:id/winners', authenticate, async (req: Request, res: Response): Promise<void> => {
   try {

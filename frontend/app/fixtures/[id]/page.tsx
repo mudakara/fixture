@@ -492,6 +492,32 @@ function FixtureDetailContent({ params }: { params: Promise<Params> }) {
     }
   };
 
+  const handleMatchDelete = async (matchId: string) => {
+    if (!fixture) return;
+
+    // Confirm deletion
+    if (!confirm('Are you sure you want to delete this match? This action cannot be undone.')) {
+      return;
+    }
+
+    try {
+      const response = await axios.delete(
+        `${process.env.NEXT_PUBLIC_API_URL}/fixtures/${fixture._id}/matches/${matchId}`,
+        { withCredentials: true }
+      );
+
+      if (response.data.success) {
+        // Update local state immediately
+        setMatches(prevMatches => prevMatches.filter(match => match._id !== matchId));
+        
+        // Refresh full data in background
+        fetchFixtureDetails();
+      }
+    } catch (err: any) {
+      alert(err.response?.data?.error || 'Failed to delete match');
+    }
+  };
+
   const getAvailablePartners = (participantId: string | undefined, side: 'home' | 'away'): Participant[] => {
     console.log('=== GET AVAILABLE PARTNERS DEBUG ===');
     console.log('Input:', { participantId, side });
@@ -1754,6 +1780,7 @@ function FixtureDetailContent({ params }: { params: Promise<Params> }) {
                     matches={matches}
                     participants={participants}
                     onMatchUpdate={handleMatchParticipantUpdate}
+                    onMatchDelete={handleMatchDelete}
                     fixture={fixture}
                     teamMap={teamMap}
                     getPlayerTeamName={getPlayerTeamName}
