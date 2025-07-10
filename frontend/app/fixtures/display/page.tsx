@@ -264,10 +264,10 @@ function FixtureDisplayContent() {
       roundMatches[i] = matches.filter(m => m.round === i).sort((a, b) => a.matchNumber - b.matchNumber);
     }
 
-    const matchHeight = fixture.participantType === 'player' ? 120 : 100;
-    const matchWidth = 260;
-    const roundGap = 100;
-    const matchVerticalGap = 20;
+    const matchHeight = fixture.participantType === 'player' ? 90 : 75;
+    const matchWidth = 200;
+    const roundGap = 80;
+    const matchVerticalGap = 15;
     const totalHeight = Math.pow(2, rounds - 1) * (matchHeight + matchVerticalGap);
 
     // Calculate match positions
@@ -308,14 +308,14 @@ function FixtureDisplayContent() {
     }
 
     return (
-      <div className="overflow-x-auto overflow-y-hidden pb-4">
-        <div className="relative" style={{ minHeight: `${totalHeight + 80}px`, width: `${rounds * (matchWidth + roundGap)}px` }}>
+      <div className="overflow-x-auto overflow-y-hidden pb-2">
+        <div className="relative" style={{ minHeight: `${totalHeight + 40}px`, width: `${rounds * (matchWidth + roundGap)}px` }}>
           {Object.entries(roundMatches).map(([round, roundMatchList], roundIndex) => {
             const roundNumber = parseInt(round);
             
             return (
               <div key={round} className="absolute" style={{ left: `${roundIndex * (matchWidth + roundGap)}px` }}>
-                <h4 className="text-sm font-black text-gray-900 mb-2 text-center">
+                <h4 className="text-xs font-bold text-gray-800 mb-1 text-center">
                   {roundNumber === rounds ? 'Final' : 
                    roundNumber === rounds - 1 && rounds > 1 ? 'Semi-Finals' :
                    roundNumber === rounds - 2 && rounds > 2 ? 'Quarter-Finals' :
@@ -332,11 +332,11 @@ function FixtureDisplayContent() {
                     <div key={match._id} className="absolute" style={{ top: `${topPosition + 30}px`, width: `${matchWidth}px` }}>
                       {/* Winner badge for final match */}
                       {isChampion && (
-                        <div className="absolute -top-5 left-1/2 transform -translate-x-1/2 flex items-center space-x-1 bg-gradient-to-r from-yellow-500 to-amber-500 text-white px-3 py-1 rounded-full text-xs font-black shadow-md">
-                          <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                        <div className="absolute -top-4 left-1/2 transform -translate-x-1/2 flex items-center space-x-0.5 bg-gradient-to-r from-yellow-500 to-amber-500 text-white px-2 py-0.5 rounded-full text-[10px] font-bold shadow-sm">
+                          <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
                             <path d="M5 3a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2V5a2 2 0 00-2-2H5zM5 11a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2v-2a2 2 0 00-2-2H5zM11 5a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V5zM14 11a1 1 0 011 1v1h1a1 1 0 110 2h-1v1a1 1 0 11-2 0v-1h-1a1 1 0 110-2h1v-1a1 1 0 011-1z"/>
                           </svg>
-                          <span>CHAMPION</span>
+                          <span>WINNER</span>
                         </div>
                       )}
                       
@@ -369,7 +369,7 @@ function FixtureDisplayContent() {
                                   left: `${matchWidth}px`,
                                   top: `${matchHeight / 2 - 1}px`,
                                   width: `${roundGap / 2}px`,
-                                  height: '3px',
+                                  height: '2px',
                                   backgroundColor: match.winner ? '#10b981' : '#9ca3af',
                                 }}
                               />
@@ -381,13 +381,13 @@ function FixtureDisplayContent() {
                                 key="dot-start"
                                 className="absolute"
                                 style={{
-                                  left: `${matchWidth - 3}px`,
-                                  top: `${matchHeight / 2 - 4}px`,
-                                  width: '10px',
-                                  height: '10px',
+                                  left: `${matchWidth - 2}px`,
+                                  top: `${matchHeight / 2 - 3}px`,
+                                  width: '6px',
+                                  height: '6px',
                                   borderRadius: '50%',
                                   backgroundColor: match.winner ? '#10b981' : '#9ca3af',
-                                  border: '2px solid white',
+                                  border: '1px solid white',
                                   zIndex: 1
                                 }}
                               />
@@ -409,7 +409,7 @@ function FixtureDisplayContent() {
                                     style={{
                                       left: `${matchWidth + roundGap / 2 - 1}px`,
                                       top: `${matchHeight / 2}px`,
-                                      width: '3px',
+                                      width: '2px',
                                       height: `${midY - currentY}px`,
                                       backgroundColor: match.winner ? '#10b981' : '#9ca3af',
                                     }}
@@ -425,7 +425,7 @@ function FixtureDisplayContent() {
                                       left: `${matchWidth + roundGap / 2}px`,
                                       top: `${matchHeight / 2 + (midY - currentY) - 1}px`,
                                       width: `${roundGap / 2}px`,
-                                      height: '3px',
+                                      height: '2px',
                                       backgroundColor: (match.winner || siblingMatch.winner) ? '#10b981' : '#9ca3af',
                                     }}
                                   />
@@ -439,7 +439,7 @@ function FixtureDisplayContent() {
                                     style={{
                                       left: `${matchWidth + roundGap / 2 - 1}px`,
                                       top: `${midY - currentY + matchHeight / 2}px`,
-                                      width: '3px',
+                                      width: '2px',
                                       height: `${currentY - midY}px`,
                                       backgroundColor: match.winner ? '#10b981' : '#9ca3af',
                                     }}
@@ -455,63 +455,63 @@ function FixtureDisplayContent() {
                       
                       {/* Match card */}
                       <div
-                        className={`relative bg-white border-2 rounded-lg p-2 shadow-md ${
-                          isChampion ? 'border-3 border-yellow-500 bg-gradient-to-br from-yellow-50 to-white shadow-yellow-200' :
-                          match.status === 'completed' ? 'border-green-600' : 'border-gray-500'
+                        className={`relative bg-white border rounded-md p-1.5 shadow-sm ${
+                          isChampion ? 'border-2 border-yellow-500 bg-gradient-to-br from-yellow-50 to-white shadow-yellow-200' :
+                          match.status === 'completed' ? 'border-green-600' : 'border-gray-400'
                         }`}
-                        style={{ height: `${matchHeight}px` }}
+                        style={{ height: `${matchHeight}px`, width: `${matchWidth}px` }}
                       >
-                        <div className="flex justify-between items-center mb-1">
-                          <span className="text-xs font-black text-gray-800">M{match.matchNumber}</span>
-                          <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${
+                        <div className="flex justify-between items-center mb-0.5">
+                          <span className="text-[10px] font-bold text-gray-700">M{match.matchNumber}</span>
+                          <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-semibold ${
                             match.status === 'completed' ? 'bg-green-200 text-green-900' :
                             match.status === 'in_progress' ? 'bg-yellow-200 text-yellow-900' :
-                            'bg-gray-200 text-gray-800'
+                            'bg-gray-200 text-gray-700'
                           }`}>
-                            {match.status === 'walkover' ? 'Bye' : match.status}
+                            {match.status === 'walkover' ? 'Bye' : match.status === 'completed' ? 'Done' : match.status.replace('_', ' ')}
                           </span>
                         </div>
                         
-                        <div className="space-y-2">
-                          <div className={`flex justify-between items-center px-2 py-1.5 rounded-md transition-all ${
+                        <div className="space-y-1">
+                          <div className={`flex justify-between items-center px-1.5 py-1 rounded transition-all ${
                             match.winner && match.homeParticipant?._id === match.winner._id 
                               ? 'bg-green-100 border border-green-500' 
-                              : 'bg-gray-50 border border-gray-400'
+                              : 'bg-gray-50 border border-gray-300'
                           }`}>
-                            <div className="flex flex-col flex-1 min-w-0">
-                              <span className="font-bold text-sm text-gray-900 truncate">
+                            <div className="flex flex-col flex-1 min-w-0 mr-1">
+                              <span className="font-semibold text-xs text-gray-900 truncate leading-tight">
                                 {match.homeParticipant?.name || match.homeParticipant?.displayName || 'TBD'}
                               </span>
                               {fixture.participantType === 'player' && getPlayerTeamName(fixture._id, match.homeParticipant) && (
-                                <span className="text-xs text-gray-700 italic truncate">
+                                <span className="text-[10px] text-gray-600 truncate leading-tight">
                                   {getPlayerTeamName(fixture._id, match.homeParticipant)}
                                 </span>
                               )}
                             </div>
                             {match.homeScore !== undefined && (
-                              <span className="font-black text-lg text-gray-900 ml-2">{match.homeScore}</span>
+                              <span className="font-bold text-sm text-gray-900 flex-shrink-0">{match.homeScore}</span>
                             )}
                           </div>
                           
-                          <div className="border-t border-gray-400 my-0.5"></div>
+                          <div className="border-t border-gray-300"></div>
                           
-                          <div className={`flex justify-between items-center px-2 py-1.5 rounded-md transition-all ${
+                          <div className={`flex justify-between items-center px-1.5 py-1 rounded transition-all ${
                             match.winner && match.awayParticipant?._id === match.winner._id 
                               ? 'bg-green-100 border border-green-500' 
-                              : 'bg-gray-50 border border-gray-400'
+                              : 'bg-gray-50 border border-gray-300'
                           }`}>
-                            <div className="flex flex-col flex-1 min-w-0">
-                              <span className="font-bold text-sm text-gray-900 truncate">
+                            <div className="flex flex-col flex-1 min-w-0 mr-1">
+                              <span className="font-semibold text-xs text-gray-900 truncate leading-tight">
                                 {match.awayParticipant?.name || match.awayParticipant?.displayName || 'TBD'}
                               </span>
                               {fixture.participantType === 'player' && getPlayerTeamName(fixture._id, match.awayParticipant) && (
-                                <span className="text-xs text-gray-700 italic truncate">
+                                <span className="text-[10px] text-gray-600 truncate leading-tight">
                                   {getPlayerTeamName(fixture._id, match.awayParticipant)}
                                 </span>
                               )}
                             </div>
                             {match.awayScore !== undefined && (
-                              <span className="font-black text-lg text-gray-900 ml-2">{match.awayScore}</span>
+                              <span className="font-bold text-sm text-gray-900 flex-shrink-0">{match.awayScore}</span>
                             )}
                           </div>
                         </div>
