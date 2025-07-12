@@ -38,6 +38,9 @@ import { PermissionService } from './services/permissionService';
 const app = express();
 const PORT = parseInt(process.env.PORT || '3501', 10);
 
+// Set port on app for testing
+app.set('port', PORT);
+
 console.log('Environment PORT:', process.env.PORT);
 console.log('Using PORT:', PORT);
 console.log('CORS CLIENT_URL:', process.env.CLIENT_URL);
@@ -120,8 +123,14 @@ app.use((err: Error, _req: express.Request, res: express.Response, _next: expres
   });
 });
 
-app.listen(PORT, async () => {
-  logger.info(`Server running on port ${PORT}`);
-  await createDefaultSuperAdmin();
-  await PermissionService.initializeDefaultPermissions();
-});
+// Only start server if not in test environment
+if (process.env.NODE_ENV !== 'test') {
+  app.listen(PORT, async () => {
+    logger.info(`Server running on port ${PORT}`);
+    await createDefaultSuperAdmin();
+    await PermissionService.initializeDefaultPermissions();
+  });
+}
+
+// Export app for testing
+export default app;
