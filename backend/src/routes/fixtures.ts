@@ -9,6 +9,7 @@ import { authenticate } from '../middleware/auth';
 import AuditLog from '../models/AuditLog';
 import logger from '../utils/logger';
 import mongoose from 'mongoose';
+import AIFixtureService from '../services/aiFixtureService';
 
 const router = express.Router();
 
@@ -748,42 +749,89 @@ router.post('/ai-generate', authenticate, canManageFixtures, async (req: Request
     let aiMetadata: any = {};
 
     try {
-      // For now, we'll use an enhanced version of the existing algorithm
-      // In a real implementation, this would call an AI service
+      // Initialize AI service with the selected provider
+      const aiService = new AIFixtureService(aiSettings?.modelPreferences?.provider || 'local');
       
-      // Simulate AI processing
-      logger.info('Processing with AI optimization...');
+      logger.info('Processing with AI optimization...', {
+        provider: aiSettings?.modelPreferences?.provider || 'local'
+      });
       
-      // Create an optimized participant arrangement
-      let optimizedParticipants = [...participants];
+      // Prepare participant data for AI optimization
+      let participantData: any[] = [];
       
-      if (aiSettings?.optimizationGoals?.avoidSameTeamFirstRound && participantType === 'player') {
-        // Get team information for players
-        const playersWithTeams = await User.find({
+      if (participantType === 'player') {
+        // Get detailed player information including teams and stats
+        const playersWithDetails = await User.find({
           _id: { $in: participants }
-        }).select('_id teamMemberships').lean();
+        })
+        .populate('teamMemberships.teamId', 'name')
+        .lean();
         
-        const playerToTeamMap = new Map<string, string>();
-        playersWithTeams.forEach(player => {
+        // Get match history for win rate calculation
+        const playerMatches = await Match.find({
+          $or: [
+            { winner: { $in: participants } },
+            { homeParticipant: { $in: participants } },
+            { awayParticipant: { $in: participants } }
+          ],
+          status: 'completed'
+        }).lean();
+        
+        participantData = playersWithDetails.map(player => {
+          const playerIdStr = player._id.toString();
           const membership = player.teamMemberships.find(
             tm => tm.eventId.toString() === eventId.toString()
           );
-          if (membership) {
-            playerToTeamMap.set(player._id.toString(), membership.teamId.toString());
-          }
+          
+          // Calculate win rate
+          const wins = playerMatches.filter(m => 
+            m.winner?.toString() === playerIdStr
+          ).length;
+          const totalMatches = playerMatches.filter(m => 
+            m.homeParticipant?.toString() === playerIdStr || 
+            m.awayParticipant?.toString() === playerIdStr
+          ).length;
+          const winRate = totalMatches > 0 ? Math.round((wins / totalMatches) * 100) : 50;
+          
+          return {
+            id: playerIdStr,
+            name: player.name || player.displayName || player.email,
+            teamId: membership?.teamId?._id?.toString(),
+            teamName: (membership?.teamId as any)?.name,
+            stats: {
+              wins,
+              losses: totalMatches - wins,
+              winRate
+            }
+          };
         });
+      } else {
+        // Get team information
+        const teamsWithDetails = await Team.find({
+          _id: { $in: participants }
+        }).lean();
         
-        // Use the existing arrangement function as base for AI
-        const { arrangedParticipants } = arrangeParticipantsAvoidSameTeam(
-          participants.map((id: string) => new mongoose.Types.ObjectId(id)),
-          playerToTeamMap,
-          aiSettings?.optimizationGoals?.balanceSkillLevels
-        );
-        optimizedParticipants = arrangedParticipants.map(id => id.toString());
-      } else if (aiSettings?.optimizationGoals?.balanceSkillLevels) {
-        // Shuffle for balance (in real implementation, would use skill data)
-        optimizedParticipants = shuffleArray(optimizedParticipants);
+        participantData = teamsWithDetails.map(team => ({
+          id: team._id.toString(),
+          name: team.name,
+          stats: {
+            wins: 0,
+            losses: 0,
+            winRate: 50
+          }
+        }));
       }
+      
+      // Call AI service for optimization
+      const aiResult = await aiService.optimizeFixture({
+        participants: participantData,
+        format,
+        optimizationGoals: aiSettings?.optimizationGoals || {},
+        constraints: aiSettings?.constraints
+      });
+      
+      // Map optimized order back to ObjectIds
+      const optimizedParticipants = aiResult.optimizedOrder;
       
       // Create fixture with AI-generated flag
       fixture = new Fixture({
@@ -805,7 +853,7 @@ router.post('/ai-generate', authenticate, canManageFixtures, async (req: Request
             constraints: aiSettings?.constraints,
             generationMetadata: {
               modelUsed: aiSettings?.modelPreferences?.provider || 'local',
-              optimizationScore: Math.floor(Math.random() * 20) + 80, // Simulated score 80-100
+              optimizationScore: aiResult.confidenceScore,
               generationTime: Date.now()
             }
           }
@@ -837,13 +885,11 @@ router.post('/ai-generate', authenticate, canManageFixtures, async (req: Request
       aiMetadata = {
         generationMethod: 'ai',
         modelUsed: aiSettings?.modelPreferences?.provider || 'local',
-        optimizationScore: fixture.settings.aiSettings?.generationMetadata?.optimizationScore || 85,
+        optimizationScore: aiResult.confidenceScore,
         participantsOptimized: true,
         warnings: [],
-        suggestions: [
-          'Consider scheduling matches at different times to avoid player fatigue',
-          'Monitor closely for competitive balance in early rounds'
-        ]
+        suggestions: aiResult.suggestions,
+        reasoning: aiResult.reasoning
       };
       
     } catch (aiError: any) {
