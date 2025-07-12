@@ -333,9 +333,10 @@ router.get('/events/:id/stats', authenticate, async (req: Request, res: Response
     const totalPlayers = teams.reduce((sum, team) => sum + team.players.length, 0);
 
     const now = new Date();
-    const status = event.isActive && now >= event.startDate && now <= event.endDate
+    const status = event.isActive && event.startDate && event.endDate && 
+      now >= event.startDate && now <= event.endDate
       ? 'ongoing'
-      : now > event.endDate
+      : event.endDate && now > event.endDate
       ? 'ended'
       : 'upcoming';
 

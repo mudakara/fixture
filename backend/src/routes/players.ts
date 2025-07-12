@@ -125,6 +125,13 @@ router.get('/players/:id/profile', authenticate, async (req: Request, res: Respo
     .populate('sportGameId', 'title type points isDoubles')
     .lean();
     
+    // Filter fixtures to only include those with points configured
+    const fixturesWithPoints = playerFixtures.filter(fixture => {
+      const sportGame = fixture.sportGameId as any;
+      return sportGame && sportGame.points && 
+             (sportGame.points.first > 0 || sportGame.points.second > 0 || sportGame.points.third > 0);
+    });
+    
     // Map to store player's achievements
     const achievements = new Map<string, {
       activityId: string;
@@ -140,7 +147,7 @@ router.get('/players/:id/profile', authenticate, async (req: Request, res: Respo
     }>();
     
     // Process each fixture to find player's rankings
-    for (const fixture of playerFixtures) {
+    for (const fixture of fixturesWithPoints) {
       const sportGame = fixture.sportGameId as any;
       const event = fixture.eventId as any;
       
@@ -265,6 +272,20 @@ router.get('/players/:id/profile', authenticate, async (req: Request, res: Respo
     const secondPlaces = achievementsList.filter(a => a.position === 2).length;
     const thirdPlaces = achievementsList.filter(a => a.position === 3).length;
     
+    // Debug logging for podium rate calculation
+    logger.info(`Player ${id} podium rate calculation:`, {
+      playerId: id,
+      playerName: player.name,
+      totalFixturesAll: playerFixtures.length,
+      totalFixturesWithPoints: fixturesWithPoints.length,
+      achievements: achievementsList.length,
+      firstPlaces,
+      secondPlaces,
+      thirdPlaces,
+      podiumTotal: firstPlaces + secondPlaces + thirdPlaces,
+      podiumRate: fixturesWithPoints.length > 0 ? Math.round(((firstPlaces + secondPlaces + thirdPlaces) / fixturesWithPoints.length) * 100) : 0
+    });
+    
     // Get player's teams
     const playerTeams = await Team.find({
       $or: [
@@ -289,7 +310,7 @@ router.get('/players/:id/profile', authenticate, async (req: Request, res: Respo
         firstPlaces,
         secondPlaces,
         thirdPlaces,
-        totalActivities: achievementsList.length
+        totalActivities: fixturesWithPoints.length
       },
       achievements: achievementsList.sort((a, b) => b.points - a.points)
     });

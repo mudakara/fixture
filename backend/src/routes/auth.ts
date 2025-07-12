@@ -16,7 +16,6 @@ router.post('/microsoft',
     try {
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
-        console.log('Validation errors:', errors.array());
         res.status(400).json({ 
           success: false,
           error: 'Validation failed',
@@ -26,7 +25,6 @@ router.post('/microsoft',
       }
 
       const { token } = req.body;
-      console.log('Received token:', token ? 'Token present' : 'No token');
 
       // Get user info from Microsoft Graph
       const userInfo = await AzureAdService.getUserInfo(token);
@@ -38,7 +36,6 @@ router.post('/microsoft',
       sendTokenResponse(user, 200, res);
     } catch (error: any) {
       logger.error('Microsoft authentication error:', error);
-      console.error('Auth error details:', error.message);
       
       // Send more specific error message
       res.status(401).json({ 

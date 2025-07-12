@@ -9,7 +9,7 @@ export interface IFixture extends Document {
   participantType: 'player' | 'team';
   participants: mongoose.Types.ObjectId[]; // Array of player IDs or team IDs
   status: 'draft' | 'scheduled' | 'in_progress' | 'completed' | 'cancelled';
-  startDate: Date;
+  startDate?: Date;
   endDate?: Date;
   settings: {
     // Knockout specific settings
@@ -37,6 +37,8 @@ export interface IFixture extends Document {
   isActive: boolean;
   createdAt: Date;
   updatedAt: Date;
+  // Virtual properties
+  participantCount?: number;
 }
 
 const FixtureSchema = new Schema<IFixture>(
@@ -169,7 +171,7 @@ FixtureSchema.index({ createdBy: 1 });
 
 // Virtual to get participant count
 FixtureSchema.virtual('participantCount').get(function() {
-  return this.participants.length;
+  return this.participants?.length || 0;
 });
 
 // Validate participant count based on format

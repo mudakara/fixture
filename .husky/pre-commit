@@ -1,0 +1,13 @@
+#!/usr/bin/env sh
+. "$(dirname -- "$0")/_/husky.sh"
+
+# Run backend tests for changed files
+cd backend
+npm run test -- --findRelatedTests --passWithNoTests
+
+# Run linting
+npm run lint
+
+# Run frontend linting
+cd ../frontend
+npm run lint

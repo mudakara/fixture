@@ -14,6 +14,52 @@ The application follows an Event-Team-Player hierarchy:
 - **Events** can have multiple **Fixtures** for sports/games
 - **Fixtures** contain **Matches** between players or teams
 
+## Testing Strategy
+
+### Automated Testing
+The application uses Jest for backend testing with the following setup:
+- **Unit Tests**: Test individual functions and methods
+- **Integration Tests**: Test API endpoints with database interactions
+- **In-Memory Database**: Uses MongoDB Memory Server for fast, isolated tests
+- **Coverage Reports**: Generated in `backend/coverage` directory
+
+### Running Tests
+```bash
+# Run all backend tests
+cd backend && npm test
+
+# Run tests in watch mode (for development)
+cd backend && npm run test:watch
+
+# Run tests with coverage report
+cd backend && npm run test:coverage
+
+# Run specific test file
+cd backend && npm test example.test.ts
+
+# Run tests without coverage (faster)
+cd backend && npm test -- --no-coverage
+```
+
+### Test Structure
+- Test files are located in `backend/src/__tests__/` directory
+- Test utilities are in `backend/src/test/utils.ts`
+- Each major feature has its own test file
+- Tests follow the pattern: Arrange → Act → Assert
+
+### CI/CD Pipeline
+- GitHub Actions runs tests on every push and pull request
+- Tests run on Node.js 18.x and 20.x
+- Includes linting, testing, and build verification
+- Coverage reports uploaded to Codecov (if configured)
+
+### Preventing Regression
+1. **Write Tests First**: For bug fixes, write a failing test that reproduces the issue
+2. **Test Edge Cases**: Include tests for boundary conditions
+3. **Integration Tests**: Test complete user workflows
+4. **Manual Testing**: Use TEST_CHECKLIST.md for manual verification
+5. **Code Reviews**: Ensure new features include appropriate tests
+
 ## Development Commands
 
 ### Quick Start
@@ -847,6 +893,48 @@ Required API Permissions:
     - Allows editing existing partner assignments
     - Maintains team cohesion in doubles pairings
 
+### v0.14 Updates (Latest)
+- **Match Deletion in Edit Fixture Mode**:
+  - Added delete button to match cards with no participants (TBD vs TBD)
+  - Only available for admin and super admin users
+  - Confirmation dialog before deletion
+  - Backend validation prevents deletion of matches with participants
+  - Updates previousMatchIds references in other matches
+  - Creates audit log for match deletions
+  - API endpoint: `DELETE /api/fixtures/:fixtureId/matches/:matchId`
+
+- **Smart Connecting Lines in Edit Mode**:
+  - Lines only drawn for matches that have participants
+  - Empty matches don't show connecting lines
+  - Lines automatically update when matches are deleted
+  - Checks if sibling matches have participants before drawing connections
+
+- **Randomize Button Enhancement**:
+  - Extended to all knockout fixtures (not just team-based)
+  - Available for both admin and super admin users
+  - Shows disabled state with tooltip when matches are played
+  - Updated confirmation message to clarify settings are maintained
+  - Backend now allows admin users to randomize (previously super admin only)
+
+- **Tournament Display Page Improvements**:
+  - Fixed match card heights: 123px for players, 108px for teams
+  - Optimized space usage with compact controls bar
+  - Made all text more visible with darker colors and bolder fonts
+  - Improved empty states with better visual feedback
+  - Enhanced filter inputs with thicker borders
+  - Better loading and error states
+
+- **Bug Fixes**:
+  - Fixed sportgames API routing (was mounted at /api instead of /api/sportgames)
+  - Improved logger output to properly stringify objects
+  - Fixed "[object Object]" console messages
+  - Corrected all sportgames route definitions
+
+- **API Changes**:
+  - Fixed sportgames endpoints routing
+  - Added match deletion endpoint
+  - Updated randomize permissions to include admin role
+
 ### v0.6 Updates
 - **Dynamic Match Results and Advanced Partner Logic**:
   - Enhanced tournament advancement based on actual match results
@@ -944,7 +1032,7 @@ Required API Permissions:
   - Role-based access control (admins can edit all fields, captains limited)
 
 - **API Additions**:
-  - `POST /api/fixtures/:id/randomize` - Randomize knockout bracket (Super Admin only)
+  - `POST /api/fixtures/:id/randomize` - Randomize knockout bracket (Super Admin and Admin)
 
 ### v0.1 Updates
 - **Enhanced Tournament Bracket Visualization**:

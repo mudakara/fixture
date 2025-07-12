@@ -106,6 +106,16 @@ function PlayerProfileContent({ params }: { params: Promise<Params> }) {
         { withCredentials: true }
       );
       
+      console.log('Player Profile Response:', response.data);
+      console.log('Statistics:', response.data.statistics);
+      console.log('Podium calculation:', {
+        firstPlaces: response.data.statistics.firstPlaces,
+        secondPlaces: response.data.statistics.secondPlaces,
+        thirdPlaces: response.data.statistics.thirdPlaces,
+        totalActivities: response.data.statistics.totalActivities,
+        podiumTotal: response.data.statistics.firstPlaces + response.data.statistics.secondPlaces + response.data.statistics.thirdPlaces,
+        podiumRate: Math.round(((response.data.statistics.firstPlaces + response.data.statistics.secondPlaces + response.data.statistics.thirdPlaces) / response.data.statistics.totalActivities) * 100)
+      });
       setProfile(response.data.player);
       setStatistics(response.data.statistics);
       setAchievements(response.data.achievements);

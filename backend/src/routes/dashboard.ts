@@ -30,11 +30,11 @@ router.get('/dashboard/stats', authenticate, async (req: Request, res: Response)
     const events = await Event.find({ isActive: true });
     
     // Categorize events
-    const upcomingEvents = events.filter(e => new Date(e.startDate) > now);
+    const upcomingEvents = events.filter(e => e.startDate && new Date(e.startDate) > now);
     const ongoingEvents = events.filter(e => 
-      new Date(e.startDate) <= now && new Date(e.endDate) >= now
+      e.startDate && e.endDate && new Date(e.startDate) <= now && new Date(e.endDate) >= now
     );
-    const pastEvents = events.filter(e => new Date(e.endDate) < now);
+    const pastEvents = events.filter(e => e.endDate && new Date(e.endDate) < now);
 
     // Super Admin and Admin statistics
     if (userRole === 'super_admin' || userRole === 'admin') {
@@ -173,8 +173,8 @@ router.get('/dashboard/stats', authenticate, async (req: Request, res: Response)
       name: e.name,
       startDate: e.startDate,
       endDate: e.endDate,
-      status: new Date(e.startDate) > now ? 'upcoming' : 
-              (new Date(e.endDate) < now ? 'ended' : 'ongoing')
+      status: e.startDate && new Date(e.startDate) > now ? 'upcoming' : 
+              (e.endDate && new Date(e.endDate) < now ? 'ended' : 'ongoing')
     }));
 
     res.json({

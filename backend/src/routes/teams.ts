@@ -301,7 +301,7 @@ router.put('/teams/:id', authenticate, upload.single('teamLogo'), async (req: Re
         });
       }
 
-      if (viceCaptainId && viceCaptainId !== team.viceCaptainId.toString()) {
+      if (viceCaptainId && team.viceCaptainId && viceCaptainId !== team.viceCaptainId.toString()) {
         const viceCaptain = await User.findById(viceCaptainId);
         if (!viceCaptain) {
           res.status(404).json({ error: 'Vice-captain not found' });
@@ -404,7 +404,7 @@ router.post('/teams/:id/players', authenticate, async (req: Request, res: Respon
     // Check permissions
     const isAdmin = userRole === 'super_admin' || userRole === 'admin';
     const isCaptain = team.captainId.toString() === user._id.toString();
-    const isViceCaptain = team.viceCaptainId.toString() === user._id.toString();
+    const isViceCaptain = team.viceCaptainId && team.viceCaptainId.toString() === user._id.toString();
     
     if (!isAdmin && !isCaptain && !isViceCaptain) {
       res.status(403).json({ error: 'Access denied' });
@@ -493,7 +493,7 @@ router.delete('/teams/:id/players/:playerId', authenticate, async (req: Request,
     // Check permissions
     const isAdmin = userRole === 'super_admin' || userRole === 'admin';
     const isCaptain = team.captainId.toString() === user._id.toString();
-    const isViceCaptain = team.viceCaptainId.toString() === user._id.toString();
+    const isViceCaptain = team.viceCaptainId && team.viceCaptainId.toString() === user._id.toString();
     
     if (!isAdmin && !isCaptain && !isViceCaptain) {
       res.status(403).json({ error: 'Access denied' });
@@ -501,7 +501,7 @@ router.delete('/teams/:id/players/:playerId', authenticate, async (req: Request,
     }
 
     // Cannot remove captain or vice-captain
-    if (playerId === team.captainId.toString() || playerId === team.viceCaptainId.toString()) {
+    if (playerId === team.captainId.toString() || (team.viceCaptainId && playerId === team.viceCaptainId.toString())) {
       res.status(400).json({ error: 'Cannot remove captain or vice-captain from team' });
       return;
     }
@@ -575,7 +575,7 @@ router.post('/teams/:id/players/bulk', authenticate, async (req: Request, res: R
     // Check permissions
     const isAdmin = userRole === 'super_admin' || userRole === 'admin';
     const isCaptain = team.captainId.toString() === user._id.toString();
-    const isViceCaptain = team.viceCaptainId.toString() === user._id.toString();
+    const isViceCaptain = team.viceCaptainId && team.viceCaptainId.toString() === user._id.toString();
     
     if (!isAdmin && !isCaptain && !isViceCaptain) {
       res.status(403).json({ error: 'Access denied' });

@@ -1281,6 +1281,63 @@ router.put('/:fixtureId/matches/:matchId/participants', authenticate, async (req
 
     await match.save();
 
+    // Recalculate match links for the entire fixture
+    const fixture = await Fixture.findById(fixtureId);
+    if (fixture && fixture.format === 'knockout') {
+      const allMatches = await Match.find({ fixtureId }).sort({ round: 1, matchNumber: 1 });
+      
+      // Group matches by round
+      const matchesByRound: { [key: number]: any[] } = {};
+      allMatches.forEach(m => {
+        if (!matchesByRound[m.round]) {
+          matchesByRound[m.round] = [];
+        }
+        matchesByRound[m.round].push(m);
+      });
+      
+      // Clear all existing links
+      for (const m of allMatches) {
+        m.nextMatchId = undefined;
+        m.previousMatchIds = [];
+      }
+      
+      // Recalculate links based on current match positions
+      const rounds = Math.max(...Object.keys(matchesByRound).map(Number));
+      for (let round = 1; round < rounds; round++) {
+        const currentRoundMatches = matchesByRound[round] || [];
+        const nextRoundMatches = matchesByRound[round + 1] || [];
+        
+        for (let i = 0; i < currentRoundMatches.length; i++) {
+          const match = currentRoundMatches[i];
+          const nextMatchIndex = Math.floor(i / 2);
+          
+          if (nextMatchIndex < nextRoundMatches.length) {
+            const nextMatch = nextRoundMatches[nextMatchIndex];
+            match.nextMatchId = nextMatch._id;
+            
+            if (!nextMatch.previousMatchIds) {
+              nextMatch.previousMatchIds = [];
+            }
+            
+            // Ensure proper ordering of previousMatchIds
+            const position = i % 2; // 0 for home, 1 for away
+            if (position === 0) {
+              nextMatch.previousMatchIds[0] = match._id;
+            } else {
+              nextMatch.previousMatchIds[1] = match._id;
+            }
+          }
+        }
+      }
+      
+      // Save all matches with updated links
+      for (const m of allMatches) {
+        await m.save();
+      }
+      
+      logger.info('Recalculated match links for fixture', { fixtureId, rounds });
+    }
+
     // Create audit log
     await AuditLog.create({
       userId: user._id,
@@ -1463,6 +1520,19 @@ router.delete('/:fixtureId/matches/:matchId', authenticate, async (req: Request,
       { $pull: { previousMatchIds: matchId } }
     );
     
+    // Renumber all matches in the fixture
+    const remainingMatches = await Match.find({ fixtureId })
+      .sort({ round: 1, matchNumber: 1 });
+    
+    let newMatchNumber = 1;
+    for (const remainingMatch of remainingMatches) {
+      if (remainingMatch.matchNumber !== newMatchNumber) {
+        remainingMatch.matchNumber = newMatchNumber;
+        await remainingMatch.save();
+      }
+      newMatchNumber++;
+    }
+    
     // Create audit log
     await AuditLog.create({
       userId: user._id,
@@ -1489,6 +1559,175 @@ router.delete('/:fixtureId/matches/:matchId', authenticate, async (req: Request,
   } catch (error: any) {
     logger.error('Error deleting match:', error);
     res.status(500).json({ error: 'Failed to delete match' });
+  }
+});
+
+// Randomize knockout bracket
+router.post('/:id/randomize', authenticate, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const user = (req as any).user;
+    
+    // Check if user is admin or super admin
+    if (user?.role !== 'super_admin' && user?.role !== 'admin') {
+      res.status(403).json({ error: 'Only administrators can randomize brackets' });
+      return;
+    }
+    
+    // Get fixture
+    const fixture = await Fixture.findById(id);
+    
+    if (!fixture || !fixture.isActive) {
+      res.status(404).json({ error: 'Fixture not found' });
+      return;
+    }
+    
+    // For player fixtures, populate participants
+    let populatedParticipants = fixture.participants;
+    if (fixture.participantType === 'player') {
+      populatedParticipants = await User.find({ _id: { $in: fixture.participants } });
+    } else if (fixture.participantType === 'team') {
+      populatedParticipants = await Team.find({ _id: { $in: fixture.participants } });
+    }
+    
+    if (fixture.format !== 'knockout') {
+      res.status(400).json({ error: 'Only knockout fixtures can be randomized' });
+      return;
+    }
+    
+    // Check if any matches have been played
+    const playedMatches = await Match.countDocuments({
+      fixtureId: id,
+      status: { $in: ['completed', 'walkover'] }
+    });
+    
+    if (playedMatches > 0) {
+      res.status(400).json({ error: 'Cannot randomize bracket after matches have been played' });
+      return;
+    }
+    
+    // Delete all existing matches
+    await Match.deleteMany({ fixtureId: id });
+    
+    // Randomize participants
+    const shuffledParticipants = [...populatedParticipants];
+    for (let i = shuffledParticipants.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffledParticipants[i], shuffledParticipants[j]] = [shuffledParticipants[j], shuffledParticipants[i]];
+    }
+    
+    // Generate new matches with same settings
+    const totalParticipants = shuffledParticipants.length;
+    const bracketSize = Math.pow(2, Math.ceil(Math.log2(totalParticipants)));
+    const rounds = Math.ceil(Math.log2(bracketSize));
+    const byes = bracketSize - totalParticipants;
+    
+    const matches = [];
+    let matchNumber = 1;
+    
+    // Generate first round matches
+    const firstRoundMatches = (totalParticipants - byes) / 2;
+    const participantsWithByes = shuffledParticipants.slice(0, byes);
+    const participantsInFirstRound = shuffledParticipants.slice(byes);
+    
+    // Create first round matches
+    for (let i = 0; i < firstRoundMatches; i++) {
+      const homeIndex = i * 2;
+      const awayIndex = i * 2 + 1;
+      
+      matches.push({
+        fixtureId: id,
+        round: 1,
+        matchNumber: matchNumber++,
+        homeParticipant: participantsInFirstRound[homeIndex]._id || participantsInFirstRound[homeIndex],
+        awayParticipant: participantsInFirstRound[awayIndex]._id || participantsInFirstRound[awayIndex],
+        status: 'scheduled'
+      });
+    }
+    
+    // Create matches for subsequent rounds
+    for (let round = 2; round <= rounds; round++) {
+      const matchesInRound = Math.pow(2, rounds - round);
+      
+      for (let i = 0; i < matchesInRound; i++) {
+        const match: any = {
+          fixtureId: id,
+          round: round,
+          matchNumber: matchNumber++,
+          status: 'scheduled'
+        };
+        
+        // Add bye participants to round 2
+        if (round === 2 && i < participantsWithByes.length) {
+          match.homeParticipant = participantsWithByes[i]._id || participantsWithByes[i];
+        }
+        
+        matches.push(match);
+      }
+    }
+    
+    // Link matches
+    const createdMatches = await Match.insertMany(matches);
+    const matchesByRound: { [key: number]: any[] } = {};
+    
+    createdMatches.forEach(match => {
+      if (!matchesByRound[match.round]) {
+        matchesByRound[match.round] = [];
+      }
+      matchesByRound[match.round].push(match);
+    });
+    
+    // Update match links
+    for (let round = 1; round < rounds; round++) {
+      const currentRoundMatches = matchesByRound[round] || [];
+      const nextRoundMatches = matchesByRound[round + 1] || [];
+      
+      for (let i = 0; i < currentRoundMatches.length; i++) {
+        const match = currentRoundMatches[i];
+        const nextMatchIndex = Math.floor(i / 2);
+        
+        if (nextMatchIndex < nextRoundMatches.length) {
+          match.nextMatchId = nextRoundMatches[nextMatchIndex]._id;
+          await match.save();
+          
+          if (!nextRoundMatches[nextMatchIndex].previousMatchIds) {
+            nextRoundMatches[nextMatchIndex].previousMatchIds = [];
+          }
+          nextRoundMatches[nextMatchIndex].previousMatchIds.push(match._id);
+          await nextRoundMatches[nextMatchIndex].save();
+        }
+      }
+    }
+    
+    // Create audit log
+    await AuditLog.create({
+      userId: user._id,
+      action: 'update',
+      entity: 'fixture',
+      entityId: id,
+      details: { action: 'randomized bracket' }
+    });
+    
+    logger.info('Fixture bracket randomized', {
+      userId: user._id,
+      fixtureId: id,
+      participantCount: totalParticipants
+    });
+    
+    res.json({
+      success: true,
+      message: 'Bracket randomized successfully'
+    });
+  } catch (error: any) {
+    logger.error('Error randomizing bracket:', {
+      error: error.message,
+      stack: error.stack,
+      fixtureId: req.params.id
+    });
+    res.status(500).json({ 
+      error: 'Failed to randomize bracket',
+      details: error.message 
+    });
   }
 });
 

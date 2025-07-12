@@ -35,8 +35,6 @@ interface Fixture {
     type: string;
     category: string;
     isDoubles?: boolean;
-    hasMultipleSets?: boolean;
-    numberOfSets?: number;
   };
   format: 'knockout' | 'roundrobin';
   participantType: 'player' | 'team';
@@ -45,11 +43,6 @@ interface Fixture {
   startDate: string;
   endDate?: string;
   settings: any;
-  winners?: {
-    first?: { _id: string; name?: string; displayName?: string; };
-    second?: { _id: string; name?: string; displayName?: string; };
-    third?: { _id: string; name?: string; displayName?: string; };
-  };
   createdBy: {
     _id: string;
     name: string;
@@ -77,14 +70,6 @@ interface Match {
   notes?: string;
   nextMatchId?: string;
   previousMatchIds?: string[];
-  isThirdPlaceMatch?: boolean;
-  scoreDetails?: {
-    sets?: Array<{
-      setNumber: number;
-      homeScore: number;
-      awayScore: number;
-    }>;
-  };
 }
 
 interface Participant {
@@ -124,27 +109,19 @@ function FixtureDetailContent({ params }: { params: Promise<Params> }) {
     winner: '' as string // Will store participant ID
   });
   const [isEditMode, setIsEditMode] = useState(false);
-  const [winners, setWinners] = useState({
-    first: '',
-    second: '',
-    third: ''
-  });
-  const [isSavingWinners, setIsSavingWinners] = useState(false);
 
   const canManageFixtures = user?.role === 'super_admin' || user?.role === 'admin' || user?.role === 'captain' || user?.role === 'vicecaptain';
   const isSuperAdmin = user?.role === 'super_admin';
   const isAdmin = user?.role === 'admin';
-  const canRandomize = isSuperAdmin || isAdmin;
   
   // Check if any matches have been played
   const hasPlayedMatches = matches.some(m => m.status === 'completed' || m.status === 'in_progress');
   
   // Check if this is a doubles fixture
   const isDoubles = fixture?.sportGameId?.isDoubles === true;
-  
   // Check if this activity has multiple sets
-  const hasMultipleSets = fixture?.sportGameId?.hasMultipleSets === true;
-  const numberOfSets = fixture?.sportGameId?.numberOfSets || 1;
+  const hasMultipleSets = false; // Default to false since property doesn't exist
+  const numberOfSets = 1; // Default to 1 since property doesn't exist
   
   // Debug logging
   useEffect(() => {
@@ -161,58 +138,6 @@ function FixtureDetailContent({ params }: { params: Promise<Params> }) {
   useEffect(() => {
     fetchFixtureDetails();
   }, [resolvedParams.id]);
-  
-  // Check if tournament has reached semi-finals
-  const hasReachedSemiFinals = () => {
-    if (fixture?.format !== 'knockout') return false;
-    
-    // Find the highest round number
-    const maxRound = Math.max(...matches.map(m => m.round), 0);
-    
-    // Semi-finals is typically round maxRound - 1
-    // Check if any semi-final matches have been played
-    const semiFinalMatches = matches.filter(m => m.round === maxRound - 1);
-    return semiFinalMatches.some(m => m.status === 'completed' || m.status === 'in_progress');
-  };
-  
-  // Load saved winners or auto-populate from final match
-  useEffect(() => {
-    if (fixture?.format === 'knockout') {
-      // First check if winners are already saved
-      if (fixture.winners) {
-        setWinners({
-          first: fixture.winners.first?._id || '',
-          second: fixture.winners.second?._id || '',
-          third: fixture.winners.third?._id || ''
-        });
-      } else if (matches.length > 0) {
-        // Auto-populate from matches if no winners saved
-        const maxRound = Math.max(...matches.map(m => m.round));
-        const finalMatch = matches.find(m => m.round === maxRound && !m.isThirdPlaceMatch);
-        
-        if (finalMatch && finalMatch.status === 'completed' && finalMatch.winner) {
-          // Set 1st place
-          if (finalMatch.winner._id) {
-            setWinners(prev => ({ ...prev, first: finalMatch.winner._id }));
-          }
-          
-          // Set 2nd place (loser of final)
-          const secondPlace = finalMatch.homeParticipant?._id === finalMatch.winner._id
-            ? finalMatch.awayParticipant?._id
-            : finalMatch.homeParticipant?._id;
-          if (secondPlace) {
-            setWinners(prev => ({ ...prev, second: secondPlace }));
-          }
-        }
-        
-        // Check for 3rd place match
-        const thirdPlaceMatch = matches.find(m => m.isThirdPlaceMatch && m.status === 'completed');
-        if (thirdPlaceMatch && thirdPlaceMatch.winner?._id) {
-          setWinners(prev => ({ ...prev, third: thirdPlaceMatch.winner._id }));
-        }
-      }
-    }
-  }, [fixture, matches]);
 
   const fetchTeamData = async (eventId: string, matches: Match[]) => {
     try {
@@ -352,7 +277,7 @@ function FixtureDetailContent({ params }: { params: Promise<Params> }) {
     // Check if it's a bye match (only one participant)
     const isByeMatch = (match.homeParticipant && !match.awayParticipant) || (!match.homeParticipant && match.awayParticipant);
     
-    if (canManageFixtures && match.status !== 'walkover') {
+    if (canManageFixtures && match.status !== 'walkover' && !isByeMatch) {
       console.log('Match clicked:', match);
       console.log('Current participants state:', participants);
       console.log('Is doubles?', isDoubles);
@@ -363,7 +288,12 @@ function FixtureDetailContent({ params }: { params: Promise<Params> }) {
       let sets: Array<{ setNumber: number; homeScore: number; awayScore: number }> = [];
       if (hasMultipleSets) {
         // If match already has sets data, use it
-        if (match.scoreDetails?.sets && match.scoreDetails.sets.length > 0) {
+        if ('scoreDetails' in match && 
+            typeof match.scoreDetails === 'object' && 
+            match.scoreDetails !== null &&
+            'sets' in match.scoreDetails &&
+            Array.isArray(match.scoreDetails.sets) &&
+            match.scoreDetails.sets.length > 0) {
           sets = match.scoreDetails.sets;
         } else {
           // Initialize empty sets
@@ -390,27 +320,7 @@ function FixtureDetailContent({ params }: { params: Promise<Params> }) {
   const handleUpdateMatch = async () => {
     if (!selectedMatch) return;
 
-    // Check if it's a bye match
-    const isByeMatch = (selectedMatch.homeParticipant && !selectedMatch.awayParticipant) || 
-                      (!selectedMatch.homeParticipant && selectedMatch.awayParticipant);
-
     try {
-      // For bye matches, automatically set status to walkover
-      if (isByeMatch) {
-        await axios.put(
-          `${process.env.NEXT_PUBLIC_API_URL}/fixtures/${fixture?._id}/matches/${selectedMatch._id}`,
-          {
-            status: 'walkover',
-            notes: 'Bye match - automatic advancement'
-          },
-          { withCredentials: true }
-        );
-        
-        setShowUpdateModal(false);
-        fetchFixtureDetails(); // Refresh data
-        return;
-      }
-
       // Calculate scores from sets if applicable
       let homeScore = updateForm.homeScore;
       let awayScore = updateForm.awayScore;
@@ -462,6 +372,22 @@ function FixtureDetailContent({ params }: { params: Promise<Params> }) {
     }
   };
 
+  const handleMatchDelete = async (matchId: string) => {
+    if (!fixture) return;
+    
+    if (confirm('Are you sure you want to delete this match? This action cannot be undone.')) {
+      try {
+        await axios.delete(
+          `${process.env.NEXT_PUBLIC_API_URL}/fixtures/${fixture._id}/matches/${matchId}`,
+          { withCredentials: true }
+        );
+        fetchFixtureDetails(); // Refresh data
+      } catch (err: any) {
+        alert(err.response?.data?.error || 'Failed to delete match');
+      }
+    }
+  };
+
   const handleMatchParticipantUpdate = async (matchId: string, updates: any) => {
     if (!fixture) return;
 
@@ -489,32 +415,6 @@ function FixtureDetailContent({ params }: { params: Promise<Params> }) {
       alert(err.response?.data?.error || 'Failed to update match participants');
       // Refresh to revert changes
       fetchFixtureDetails();
-    }
-  };
-
-  const handleMatchDelete = async (matchId: string) => {
-    if (!fixture) return;
-
-    // Confirm deletion
-    if (!confirm('Are you sure you want to delete this match? This action cannot be undone.')) {
-      return;
-    }
-
-    try {
-      const response = await axios.delete(
-        `${process.env.NEXT_PUBLIC_API_URL}/fixtures/${fixture._id}/matches/${matchId}`,
-        { withCredentials: true }
-      );
-
-      if (response.data.success) {
-        // Update local state immediately
-        setMatches(prevMatches => prevMatches.filter(match => match._id !== matchId));
-        
-        // Refresh full data in background
-        fetchFixtureDetails();
-      }
-    } catch (err: any) {
-      alert(err.response?.data?.error || 'Failed to delete match');
     }
   };
 
@@ -674,13 +574,7 @@ function FixtureDetailContent({ params }: { params: Promise<Params> }) {
   const handleRandomize = async () => {
     if (!fixture) return;
     
-    // Double-check matches haven't been played
-    if (hasPlayedMatches) {
-      alert('Cannot randomize fixture - some matches have already been played.');
-      return;
-    }
-    
-    const confirmMessage = 'Are you sure you want to randomize the bracket? This will regenerate all matches with new random pairings while maintaining fixture settings.';
+    const confirmMessage = 'Are you sure you want to randomize the bracket? This will regenerate all matches with new random pairings while maintaining your fixture settings.';
     if (!confirm(confirmMessage)) return;
 
     try {
@@ -696,32 +590,6 @@ function FixtureDetailContent({ params }: { params: Promise<Params> }) {
       }
     } catch (err: any) {
       alert(err.response?.data?.error || 'Failed to randomize bracket');
-    }
-  };
-  
-  const handleSaveWinners = async () => {
-    if (!fixture) return;
-    
-    setIsSavingWinners(true);
-    try {
-      const response = await axios.put(
-        `${process.env.NEXT_PUBLIC_API_URL}/fixtures/${fixture._id}/winners`,
-        {
-          first: winners.first,
-          second: winners.second,
-          third: winners.third
-        },
-        { withCredentials: true }
-      );
-      
-      if (response.data.success) {
-        alert('Winners saved successfully!');
-        fetchFixtureDetails(); // Refresh data
-      }
-    } catch (err: any) {
-      alert(err.response?.data?.error || 'Failed to save winners');
-    } finally {
-      setIsSavingWinners(false);
     }
   };
 
@@ -1156,7 +1024,7 @@ function FixtureDetailContent({ params }: { params: Promise<Params> }) {
                           <div
                             onClick={() => handleMatchClick(match)}
                             className={`relative bg-white border rounded-lg p-3 shadow-md transition-all print-match ${
-                              canManageFixtures && match.status !== 'walkover'
+                              canManageFixtures && match.status !== 'walkover' && !isByeMatch
                                 ? 'cursor-pointer hover:shadow-xl hover:border-indigo-400 hover:scale-[1.02]' 
                                 : ''
                             } ${
@@ -1565,103 +1433,6 @@ function FixtureDetailContent({ params }: { params: Promise<Params> }) {
               ))}
             </div>
           </div>
-          
-          {/* Winners Section - Only for knockout tournaments */}
-          {fixture?.format === 'knockout' && hasReachedSemiFinals() && (
-            <div className="bg-white shadow rounded-lg p-6 mb-6 print-hide">
-              <h2 className="text-lg font-medium text-gray-900 mb-4">Winners</h2>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {/* 1st Place */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    <span className="inline-flex items-center">
-                      <span className="text-2xl mr-2">🥇</span>
-                      1st Place
-                    </span>
-                  </label>
-                  <select
-                    value={winners.first}
-                    onChange={(e) => setWinners(prev => ({ ...prev, first: e.target.value }))}
-                    disabled={!(user?.role === 'super_admin' || user?.role === 'admin')}
-                    className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-gray-900 disabled:bg-gray-100 disabled:cursor-not-allowed"
-                  >
-                    <option value="">Select winner</option>
-                    {participants?.map((participant) => (
-                      <option key={participant._id} value={participant._id}>
-                        {participant.name || participant.displayName}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                
-                {/* 2nd Place */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    <span className="inline-flex items-center">
-                      <span className="text-2xl mr-2">🥈</span>
-                      2nd Place
-                    </span>
-                  </label>
-                  <select
-                    value={winners.second}
-                    onChange={(e) => setWinners(prev => ({ ...prev, second: e.target.value }))}
-                    disabled={!(user?.role === 'super_admin' || user?.role === 'admin')}
-                    className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-gray-900 disabled:bg-gray-100 disabled:cursor-not-allowed"
-                  >
-                    <option value="">Select runner-up</option>
-                    {participants?.filter(p => p._id !== winners.first).map((participant) => (
-                      <option key={participant._id} value={participant._id}>
-                        {participant.name || participant.displayName}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                
-                {/* 3rd Place */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    <span className="inline-flex items-center">
-                      <span className="text-2xl mr-2">🥉</span>
-                      3rd Place
-                    </span>
-                  </label>
-                  <select
-                    value={winners.third}
-                    onChange={(e) => setWinners(prev => ({ ...prev, third: e.target.value }))}
-                    disabled={!(user?.role === 'super_admin' || user?.role === 'admin')}
-                    className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 text-gray-900 disabled:bg-gray-100 disabled:cursor-not-allowed"
-                  >
-                    <option value="">Select 3rd place</option>
-                    {participants?.filter(p => p._id !== winners.first && p._id !== winners.second).map((participant) => (
-                      <option key={participant._id} value={participant._id}>
-                        {participant.name || participant.displayName}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-              
-              {/* Save button - only for admin/super admin */}
-              {(user?.role === 'super_admin' || user?.role === 'admin') && (
-                <div className="mt-4 flex justify-end">
-                  <button
-                    onClick={handleSaveWinners}
-                    disabled={isSavingWinners || !winners.first || !winners.second}
-                    className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {isSavingWinners ? 'Saving...' : 'Save Winners'}
-                  </button>
-                </div>
-              )}
-              
-              {/* Info message for non-admins */}
-              {!(user?.role === 'super_admin' || user?.role === 'admin') && (
-                <p className="mt-4 text-sm text-gray-500">
-                  Winners can only be edited by administrators.
-                </p>
-              )}
-            </div>
-          )}
 
           {/* Matches/Bracket */}
           <div className="bg-white shadow rounded-lg p-6">
@@ -1681,18 +1452,22 @@ function FixtureDetailContent({ params }: { params: Promise<Params> }) {
                 {fixture.format === 'knockout' ? 'Tournament Bracket' : 'Matches'}
               </h2>
               <div className="flex items-center space-x-4">
-                {/* Randomize button for super admin and admin on knockout fixtures */}
-                {canRandomize && fixture.format === 'knockout' && (
+                {/* Randomize button for admin/super admin on all knockout fixtures */}
+                {(isAdmin || isSuperAdmin) && fixture.format === 'knockout' && (
                   <button
                     onClick={handleRandomize}
                     disabled={hasPlayedMatches}
-                    className={`px-4 py-2 ${hasPlayedMatches ? 'bg-gray-400 cursor-not-allowed' : 'bg-purple-600 hover:bg-purple-700'} text-white rounded-md flex items-center space-x-2 print:hidden transition-colors`}
-                    title={hasPlayedMatches ? 'Cannot randomize - matches have been played' : 'Randomize the bracket with new pairings'}
+                    className={`px-4 py-2 rounded-md flex items-center space-x-2 print:hidden ${
+                      hasPlayedMatches 
+                        ? 'bg-gray-300 text-gray-500 cursor-not-allowed' 
+                        : 'bg-purple-600 text-white hover:bg-purple-700'
+                    }`}
+                    title={hasPlayedMatches ? 'Cannot randomize after matches have been played' : 'Randomize bracket with new pairings'}
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                     </svg>
-                    <span>Randomize</span>
+                    <span>Randomize Bracket</span>
                   </button>
                 )}
                 {/* Edit Fixture button for super admin on player knockout fixtures */}
@@ -1795,12 +1570,7 @@ function FixtureDetailContent({ params }: { params: Promise<Params> }) {
       </div>
 
       {/* Update Match Modal */}
-      {showUpdateModal && selectedMatch && (() => {
-        // Define isByeMatch for the modal
-        const isByeMatch = (selectedMatch.homeParticipant && !selectedMatch.awayParticipant) || 
-                          (!selectedMatch.homeParticipant && selectedMatch.awayParticipant);
-        
-        return (
+      {showUpdateModal && selectedMatch && (
         <div className="fixed inset-0 bg-gray-500 bg-opacity-75 flex items-center justify-center z-50 print:hidden p-4">
           <div className="bg-white rounded-lg max-w-md w-full max-h-[90vh] flex flex-col">
             <div className="px-6 py-4 border-b border-gray-200">
@@ -1809,16 +1579,6 @@ function FixtureDetailContent({ params }: { params: Promise<Params> }) {
             
             <div className="px-6 py-4 overflow-y-auto flex-1">
               <div className="space-y-4">
-              {/* Special message for bye matches */}
-              {isByeMatch && (
-                <div className="bg-blue-50 border border-blue-200 rounded-md p-3 mb-4">
-                  <p className="text-sm text-blue-800">
-                    This is a bye match. Click "Update Match" to advance {selectedMatch.homeParticipant?.name || selectedMatch.awayParticipant?.name} to the next round.
-                  </p>
-                </div>
-              )}
-              
-              {!isByeMatch && (
               <div>
                 <label className="block text-sm font-semibold text-gray-800 mb-1">Status</label>
                 <select
@@ -1846,10 +1606,9 @@ function FixtureDetailContent({ params }: { params: Promise<Params> }) {
                   <option value="cancelled">Cancelled</option>
                 </select>
               </div>
-              )}
               
               {/* Partner Selection for Doubles */}
-              {!isByeMatch && isDoubles && fixture?.participantType === 'player' && (
+              {isDoubles && fixture?.participantType === 'player' && (
                 <div className="space-y-4">
                   <div>
                     <label className="block text-sm font-semibold text-gray-800 mb-1">
@@ -1908,7 +1667,7 @@ function FixtureDetailContent({ params }: { params: Promise<Params> }) {
               )}
               
               {/* Set-wise scores for activities with multiple sets */}
-              {!isByeMatch && hasMultipleSets && updateForm.sets.length > 0 && (
+              {hasMultipleSets && updateForm.sets.length > 0 && (
                 <div>
                   <label className="block text-sm font-semibold text-gray-800 mb-2">Set Scores</label>
                   {/* Team/Player names header */}
@@ -2013,7 +1772,7 @@ function FixtureDetailContent({ params }: { params: Promise<Params> }) {
               )}
               
               {/* Winner Selection for Sets or Score input for regular matches */}
-              {!isByeMatch && hasMultipleSets ? (
+              {hasMultipleSets ? (
                 <div>
                   <label className="block text-sm font-semibold text-gray-800 mb-2">Match Winner</label>
                   <div className="space-y-2">
@@ -2068,7 +1827,7 @@ function FixtureDetailContent({ params }: { params: Promise<Params> }) {
                     </p>
                   )}
                 </div>
-              ) : !isByeMatch ? (
+              ) : (
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-semibold text-gray-800 mb-1">
@@ -2096,7 +1855,7 @@ function FixtureDetailContent({ params }: { params: Promise<Params> }) {
                     />
                   </div>
                 </div>
-              ) : null}
+              )}
               
               <div>
                 <label className="block text-sm font-semibold text-gray-800 mb-1">Notes</label>
@@ -2126,8 +1885,7 @@ function FixtureDetailContent({ params }: { params: Promise<Params> }) {
             </div>
           </div>
         </div>
-        );
-      })()}
+      )}
     </div>
     </>
   );

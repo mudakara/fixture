@@ -5,12 +5,14 @@ export interface ITeam extends Document {
   teamLogo?: string;
   eventId: mongoose.Types.ObjectId;
   captainId: mongoose.Types.ObjectId;
-  viceCaptainId: mongoose.Types.ObjectId;
+  viceCaptainId?: mongoose.Types.ObjectId;
   players: mongoose.Types.ObjectId[];
   createdBy: mongoose.Types.ObjectId;
   isActive: boolean;
   createdAt: Date;
   updatedAt: Date;
+  // Virtual properties
+  playerCount?: number;
 }
 
 const TeamSchema = new Schema<ITeam>({
@@ -38,9 +40,10 @@ const TeamSchema = new Schema<ITeam>({
   viceCaptainId: {
     type: Schema.Types.ObjectId,
     ref: 'User',
-    required: [true, 'Team vice-captain is required'],
+    required: false,
     validate: {
       validator: function(this: ITeam, value: mongoose.Types.ObjectId) {
+        if (!value) return true;
         return !value.equals(this.captainId);
       },
       message: 'Vice-captain cannot be the same as captain'
@@ -79,7 +82,7 @@ TeamSchema.pre('save', function(next) {
   if (!this.players.some(player => player.equals(this.captainId))) {
     this.players.push(this.captainId);
   }
-  if (!this.players.some(player => player.equals(this.viceCaptainId))) {
+  if (this.viceCaptainId && !this.players.some(player => player.equals(this.viceCaptainId))) {
     this.players.push(this.viceCaptainId);
   }
   next();
