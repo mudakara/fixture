@@ -530,7 +530,7 @@ function FixtureDisplayContent() {
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50">
-        <AuthGuard allowedRoles={['super_admin', 'admin', 'captain', 'vicecaptain', 'player']}>
+        <AuthGuard>
           <Header />
           <div className="flex items-center justify-center h-96">
             <div className="bg-white rounded-xl shadow-2xl p-12 border-2 border-gray-300">
@@ -547,7 +547,7 @@ function FixtureDisplayContent() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <AuthGuard allowedRoles={['super_admin', 'admin', 'captain', 'vicecaptain', 'player']}>
+      <AuthGuard>
         <Header />
         
         <div className="max-w-full mx-auto px-2 py-2">

@@ -94,19 +94,24 @@ function CreateFixtureContent() {
     setDataLoading(true);
     setError(null); // Clear any previous errors
     try {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL;
+      if (!apiUrl) {
+        throw new Error('API URL not configured');
+      }
+
       // Fetch data sequentially with increased delays to avoid rate limiting
-      const eventsRes = await axios.get(`${process.env.NEXT_PUBLIC_API_URL}/events`, { withCredentials: true });
+      const eventsRes = await axios.get(`${apiUrl}/events`, { withCredentials: true });
       setEvents(eventsRes.data.events);
       
       // Increased delay between requests
       await new Promise(resolve => setTimeout(resolve, 300));
       
-      const sportGamesRes = await axios.get(`${process.env.NEXT_PUBLIC_API_URL}/sportgames`, { withCredentials: true });
+      const sportGamesRes = await axios.get(`${apiUrl}/sportgames`, { withCredentials: true });
       setSportGames(sportGamesRes.data.sportGames);
       
       await new Promise(resolve => setTimeout(resolve, 300));
       
-      const playersRes = await axios.get(`${process.env.NEXT_PUBLIC_API_URL}/users`, { withCredentials: true });
+      const playersRes = await axios.get(`${apiUrl}/users`, { withCredentials: true });
       // Filter to exclude super_admin and admin on the frontend
       const allUsers = playersRes.data.users || [];
       setPlayers(allUsers.filter((user: Player) => 
@@ -116,7 +121,7 @@ function CreateFixtureContent() {
       
       await new Promise(resolve => setTimeout(resolve, 300));
       
-      const teamsRes = await axios.get(`${process.env.NEXT_PUBLIC_API_URL}/teams`, { withCredentials: true });
+      const teamsRes = await axios.get(`${apiUrl}/teams`, { withCredentials: true });
       setTeams(teamsRes.data.teams || []);
       
       // Clear error on success

@@ -1,5 +1,6 @@
 'use client';
 
+import React from 'react';
 import { AuthGuard } from '@/components/AuthGuard';
 import Header from '@/components/Header';
 import { useAuth } from '@/hooks/useAuth';
@@ -35,6 +36,8 @@ interface Fixture {
     type: string;
     category: string;
     isDoubles?: boolean;
+    hasMultipleSets?: boolean;
+    numberOfSets?: number;
   };
   format: 'knockout' | 'roundrobin';
   participantType: 'player' | 'team';
@@ -43,6 +46,11 @@ interface Fixture {
   startDate: string;
   endDate?: string;
   settings: any;
+  winners?: {
+    first?: any;
+    second?: any;
+    third?: any;
+  };
   createdBy: {
     _id: string;
     name: string;
@@ -70,6 +78,7 @@ interface Match {
   notes?: string;
   nextMatchId?: string;
   previousMatchIds?: string[];
+  isThirdPlaceMatch?: boolean;
 }
 
 interface Participant {
@@ -109,6 +118,11 @@ function FixtureDetailContent({ params }: { params: Promise<Params> }) {
     winner: '' as string // Will store participant ID
   });
   const [isEditMode, setIsEditMode] = useState(false);
+  const [winnersForm, setWinnersForm] = useState({
+    first: '',
+    second: '',
+    third: ''
+  });
 
   const canManageFixtures = user?.role === 'super_admin' || user?.role === 'admin' || user?.role === 'captain' || user?.role === 'vicecaptain';
   const isSuperAdmin = user?.role === 'super_admin';
@@ -120,8 +134,8 @@ function FixtureDetailContent({ params }: { params: Promise<Params> }) {
   // Check if this is a doubles fixture
   const isDoubles = fixture?.sportGameId?.isDoubles === true;
   // Check if this activity has multiple sets
-  const hasMultipleSets = false; // Default to false since property doesn't exist
-  const numberOfSets = 1; // Default to 1 since property doesn't exist
+  const hasMultipleSets = fixture?.sportGameId?.hasMultipleSets === true;
+  const numberOfSets = fixture?.sportGameId?.numberOfSets || 1;
   
   // Debug logging
   useEffect(() => {
@@ -129,15 +143,41 @@ function FixtureDetailContent({ params }: { params: Promise<Params> }) {
       console.log('Fixture details:', {
         sportGameId: fixture.sportGameId,
         isDoubles: fixture.sportGameId?.isDoubles,
+        hasMultipleSets: fixture.sportGameId?.hasMultipleSets,
+        numberOfSets: fixture.sportGameId?.numberOfSets,
         participantType: fixture.participantType,
-        isDoublesCheck: isDoubles
+        isDoublesCheck: isDoubles,
+        hasMultipleSetsCheck: hasMultipleSets,
+        numberOfSetsCheck: numberOfSets
       });
     }
-  }, [fixture, isDoubles]);
+  }, [fixture, isDoubles, hasMultipleSets, numberOfSets]);
 
   useEffect(() => {
     fetchFixtureDetails();
   }, [resolvedParams.id]);
+
+  // Helper function to handle retry logic for rate limiting
+  const withRetry = async <T,>(
+    fn: () => Promise<T>,
+    maxRetries: number = 3,
+    baseDelay: number = 1000
+  ): Promise<T> => {
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      try {
+        return await fn();
+      } catch (error: any) {
+        if (error.response?.status === 429 && attempt < maxRetries - 1) {
+          const delay = baseDelay * Math.pow(2, attempt); // Exponential backoff
+          console.log(`Rate limited, retrying in ${delay}ms (attempt ${attempt + 1}/${maxRetries})`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+          continue;
+        }
+        throw error;
+      }
+    }
+    throw new Error('Max retries exceeded');
+  };
 
   const fetchTeamData = async (eventId: string, matches: Match[]) => {
     try {
@@ -157,10 +197,15 @@ function FixtureDetailContent({ params }: { params: Promise<Params> }) {
         });
       });
       
-      // Fetch teams for this event
-      const response = await axios.get(
-        `${process.env.NEXT_PUBLIC_API_URL}/teams?eventId=${eventId}`,
-        { withCredentials: true }
+      // Add delay before making API call to prevent rate limiting
+      await new Promise(resolve => setTimeout(resolve, 300));
+      
+      // Fetch teams for this event with retry logic
+      const response = await withRetry(() => 
+        axios.get(
+          `${process.env.NEXT_PUBLIC_API_URL}/teams?eventId=${eventId}`,
+          { withCredentials: true }
+        )
       );
       
       // Create a map of teamId to team name
@@ -171,16 +216,24 @@ function FixtureDetailContent({ params }: { params: Promise<Params> }) {
       
       setTeamMap(newTeamMap);
       console.log('Team map created:', Object.fromEntries(newTeamMap));
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error fetching team data:', err);
+      if (err.response?.status === 429) {
+        setError('Too many requests. Please wait a moment and try again.');
+      }
     }
   };
 
   const fetchFixtureDetails = async () => {
     try {
-      const response = await axios.get(
-        `${process.env.NEXT_PUBLIC_API_URL}/fixtures/${resolvedParams.id}`,
-        { withCredentials: true }
+      setError(null); // Clear any previous errors
+      
+      // Fetch fixture details with retry logic
+      const response = await withRetry(() => 
+        axios.get(
+          `${process.env.NEXT_PUBLIC_API_URL}/fixtures/${resolvedParams.id}`,
+          { withCredentials: true }
+        )
       );
       
       setFixture(response.data.fixture);
@@ -229,7 +282,14 @@ function FixtureDetailContent({ params }: { params: Promise<Params> }) {
       setLoading(false);
     } catch (err: any) {
       console.error('Error fetching fixture details:', err);
-      const errorMessage = err.response?.data?.message || err.response?.data?.error || 'Failed to fetch fixture details';
+      
+      let errorMessage = 'Failed to fetch fixture details';
+      if (err.response?.status === 429) {
+        errorMessage = 'Too many requests. Please wait a moment and refresh the page.';
+      } else if (err.response?.data?.message || err.response?.data?.error) {
+        errorMessage = err.response.data.message || err.response.data.error;
+      }
+      
       setError(errorMessage);
       setLoading(false);
     }
@@ -336,39 +396,53 @@ function FixtureDetailContent({ params }: { params: Promise<Params> }) {
         awayScore = awaySetsWon;
       }
       
-      // Update match scores and status
-      await axios.put(
-        `${process.env.NEXT_PUBLIC_API_URL}/fixtures/${fixture?._id}/matches/${selectedMatch._id}`,
-        {
-          homeScore,
-          awayScore,
-          status: updateForm.status,
-          notes: updateForm.notes,
-          scoreDetails,
-          // Include manual winner override if sets are used and admin/super admin
-          ...(hasMultipleSets && updateForm.winner && (user?.role === 'super_admin' || user?.role === 'admin') 
-            ? { winnerId: updateForm.winner } 
-            : {})
-        },
-        { withCredentials: true }
+      // Update match scores and status with retry logic
+      await withRetry(() => 
+        axios.put(
+          `${process.env.NEXT_PUBLIC_API_URL}/fixtures/${fixture?._id}/matches/${selectedMatch._id}`,
+          {
+            homeScore,
+            awayScore,
+            status: updateForm.status,
+            notes: updateForm.notes,
+            scoreDetails,
+            // Include manual winner override if sets are used and admin/super admin
+            ...(hasMultipleSets && updateForm.winner && (user?.role === 'super_admin' || user?.role === 'admin') 
+              ? { winnerId: updateForm.winner } 
+              : {})
+          },
+          { withCredentials: true }
+        )
       );
       
       // Update partners if this is a doubles fixture
       if (isDoubles && (updateForm.homePartner !== selectedMatch.homePartner?._id || updateForm.awayPartner !== selectedMatch.awayPartner?._id)) {
-        await axios.put(
-          `${process.env.NEXT_PUBLIC_API_URL}/fixtures/${fixture?._id}/matches/${selectedMatch._id}/partners`,
-          {
-            homePartner: updateForm.homePartner || null,
-            awayPartner: updateForm.awayPartner || null
-          },
-          { withCredentials: true }
+        // Add small delay before second API call
+        await new Promise(resolve => setTimeout(resolve, 200));
+        
+        await withRetry(() => 
+          axios.put(
+            `${process.env.NEXT_PUBLIC_API_URL}/fixtures/${fixture?._id}/matches/${selectedMatch._id}/partners`,
+            {
+              homePartner: updateForm.homePartner || null,
+              awayPartner: updateForm.awayPartner || null
+            },
+            { withCredentials: true }
+          )
         );
       }
       
       setShowUpdateModal(false);
       fetchFixtureDetails(); // Refresh data
     } catch (err: any) {
-      alert(err.response?.data?.error || 'Failed to update match');
+      console.error('Error updating match:', err);
+      let errorMessage = 'Failed to update match';
+      if (err.response?.status === 429) {
+        errorMessage = 'Too many requests. Please wait a moment and try again.';
+      } else if (err.response?.data?.error) {
+        errorMessage = err.response.data.error;
+      }
+      alert(errorMessage);
     }
   };
 
@@ -377,13 +451,22 @@ function FixtureDetailContent({ params }: { params: Promise<Params> }) {
     
     if (confirm('Are you sure you want to delete this match? This action cannot be undone.')) {
       try {
-        await axios.delete(
-          `${process.env.NEXT_PUBLIC_API_URL}/fixtures/${fixture._id}/matches/${matchId}`,
-          { withCredentials: true }
+        await withRetry(() => 
+          axios.delete(
+            `${process.env.NEXT_PUBLIC_API_URL}/fixtures/${fixture._id}/matches/${matchId}`,
+            { withCredentials: true }
+          )
         );
         fetchFixtureDetails(); // Refresh data
       } catch (err: any) {
-        alert(err.response?.data?.error || 'Failed to delete match');
+        console.error('Error deleting match:', err);
+        let errorMessage = 'Failed to delete match';
+        if (err.response?.status === 429) {
+          errorMessage = 'Too many requests. Please wait a moment and try again.';
+        } else if (err.response?.data?.error) {
+          errorMessage = err.response.data.error;
+        }
+        alert(errorMessage);
       }
     }
   };
@@ -392,10 +475,12 @@ function FixtureDetailContent({ params }: { params: Promise<Params> }) {
     if (!fixture) return;
 
     try {
-      const response = await axios.put(
-        `${process.env.NEXT_PUBLIC_API_URL}/fixtures/${fixture._id}/matches/${matchId}/participants`,
-        updates,
-        { withCredentials: true }
+      const response = await withRetry(() => 
+        axios.put(
+          `${process.env.NEXT_PUBLIC_API_URL}/fixtures/${fixture._id}/matches/${matchId}/participants`,
+          updates,
+          { withCredentials: true }
+        )
       );
 
       if (response.data.success) {
@@ -412,7 +497,14 @@ function FixtureDetailContent({ params }: { params: Promise<Params> }) {
         fetchFixtureDetails();
       }
     } catch (err: any) {
-      alert(err.response?.data?.error || 'Failed to update match participants');
+      console.error('Error updating match participants:', err);
+      let errorMessage = 'Failed to update match participants';
+      if (err.response?.status === 429) {
+        errorMessage = 'Too many requests. Please wait a moment and try again.';
+      } else if (err.response?.data?.error) {
+        errorMessage = err.response.data.error;
+      }
+      alert(errorMessage);
       // Refresh to revert changes
       fetchFixtureDetails();
     }
@@ -578,10 +670,12 @@ function FixtureDetailContent({ params }: { params: Promise<Params> }) {
     if (!confirm(confirmMessage)) return;
 
     try {
-      const response = await axios.post(
-        `${process.env.NEXT_PUBLIC_API_URL}/fixtures/${fixture._id}/randomize`,
-        {},
-        { withCredentials: true }
+      const response = await withRetry(() => 
+        axios.post(
+          `${process.env.NEXT_PUBLIC_API_URL}/fixtures/${fixture._id}/randomize`,
+          {},
+          { withCredentials: true }
+        )
       );
       
       if (response.data.success) {
@@ -589,7 +683,46 @@ function FixtureDetailContent({ params }: { params: Promise<Params> }) {
         fetchFixtureDetails(); // Refresh data
       }
     } catch (err: any) {
-      alert(err.response?.data?.error || 'Failed to randomize bracket');
+      console.error('Error randomizing bracket:', err);
+      let errorMessage = 'Failed to randomize bracket';
+      if (err.response?.status === 429) {
+        errorMessage = 'Too many requests. Please wait a moment and try again.';
+      } else if (err.response?.data?.error) {
+        errorMessage = err.response.data.error;
+      }
+      alert(errorMessage);
+    }
+  };
+
+  const handleUpdateWinners = async () => {
+    if (!fixture) return;
+
+    try {
+      const response = await withRetry(() => 
+        axios.put(
+          `${process.env.NEXT_PUBLIC_API_URL}/fixtures/${fixture._id}/winners`,
+          {
+            first: winnersForm.first || null,
+            second: winnersForm.second || null,
+            third: winnersForm.third || null
+          },
+          { withCredentials: true }
+        )
+      );
+      
+      if (response.data.success) {
+        alert('Winners updated successfully!');
+        fetchFixtureDetails(); // Refresh data
+      }
+    } catch (err: any) {
+      console.error('Error updating winners:', err);
+      let errorMessage = 'Failed to update winners';
+      if (err.response?.status === 429) {
+        errorMessage = 'Too many requests. Please wait a moment and try again.';
+      } else if (err.response?.data?.error) {
+        errorMessage = err.response.data.error;
+      }
+      alert(errorMessage);
     }
   };
 
@@ -611,6 +744,159 @@ function FixtureDetailContent({ params }: { params: Promise<Params> }) {
     
     return null;
   };
+
+  // Helper function to get the tournament winner
+  const getTournamentWinner = () => {
+    if (!fixture || !matches || matches.length === 0) {
+      return null;
+    }
+
+    if (fixture.format === 'knockout') {
+      // For knockout, find the final match (highest round number)
+      const maxRound = Math.max(...matches.map(m => m.round));
+      const finalMatch = matches.find(m => m.round === maxRound && m.status === 'completed' && m.winner);
+      
+      if (finalMatch?.winner) {
+        return {
+          winner: finalMatch.winner,
+          winnerPartner: finalMatch.winnerPartner,
+          runnerUp: finalMatch.winner._id === finalMatch.homeParticipant?._id 
+            ? finalMatch.awayParticipant 
+            : finalMatch.homeParticipant,
+          runnerUpPartner: finalMatch.winner._id === finalMatch.homeParticipant?._id 
+            ? finalMatch.awayPartner 
+            : finalMatch.homePartner,
+          type: 'knockout'
+        };
+      }
+    } else if (fixture.format === 'roundrobin') {
+      // For round-robin, calculate points and determine winner
+      const participantStats = new Map();
+      
+      // Initialize stats for all participants
+      participants.forEach(p => {
+        participantStats.set(p._id, {
+          participant: p,
+          points: 0,
+          wins: 0,
+          matches: 0
+        });
+      });
+      
+      // Calculate stats from completed matches
+      matches.forEach(match => {
+        if (match.status === 'completed' && match.homeParticipant && match.awayParticipant) {
+          const homeStats = participantStats.get(match.homeParticipant._id);
+          const awayStats = participantStats.get(match.awayParticipant._id);
+          
+          if (homeStats && awayStats) {
+            homeStats.matches++;
+            awayStats.matches++;
+            
+            if (match.winner) {
+              if (match.winner._id === match.homeParticipant._id) {
+                homeStats.wins++;
+                homeStats.points += 3; // Win = 3 points
+              } else {
+                awayStats.wins++;
+                awayStats.points += 3; // Win = 3 points
+              }
+            } else if (match.homeScore === match.awayScore) {
+              // Draw
+              homeStats.points += 1;
+              awayStats.points += 1;
+            }
+          }
+        }
+      });
+      
+      // Sort by points, then by wins
+      const sortedStats = Array.from(participantStats.values())
+        .filter(stats => stats.matches > 0)
+        .sort((a, b) => {
+          if (b.points !== a.points) return b.points - a.points;
+          return b.wins - a.wins;
+        });
+      
+      if (sortedStats.length > 0) {
+        return {
+          winner: sortedStats[0].participant,
+          runnerUp: sortedStats.length > 1 ? sortedStats[1].participant : null,
+          points: sortedStats[0].points,
+          wins: sortedStats[0].wins,
+          type: 'roundrobin'
+        };
+      }
+    }
+    
+    return null;
+  };
+
+  const tournamentResult = getTournamentWinner();
+
+  // Logic to determine when to show winner selection
+  const shouldShowWinnerSelection = () => {
+    if (!fixture || fixture.format !== 'knockout' || !matches || matches.length === 0) {
+      return false;
+    }
+
+    const maxRound = Math.max(...matches.map(m => m.round));
+    
+    // Show winner selection when semi-finals (second-to-last round) are completed
+    if (maxRound >= 2) {
+      const semiFinalsRound = maxRound - 1;
+      const semiFinalsMatches = matches.filter(m => m.round === semiFinalsRound);
+      const semiFinalsCompleted = semiFinalsMatches.length > 0 && 
+        semiFinalsMatches.every(m => m.status === 'completed' || m.status === 'walkover');
+      
+      return semiFinalsCompleted;
+    }
+    
+    return false;
+  };
+
+  // Auto-fill logic when finals are completed
+  const autoFillWinners = () => {
+    if (!fixture || !matches || fixture.format !== 'knockout') return;
+
+    const maxRound = Math.max(...matches.map(m => m.round));
+    const finalMatch = matches.find(m => m.round === maxRound && (m.status === 'completed' || m.status === 'walkover'));
+    
+    if (finalMatch && finalMatch.winner) {
+      const winner = finalMatch.winner._id;
+      const runnerUp = finalMatch.winner._id === finalMatch.homeParticipant?._id 
+        ? finalMatch.awayParticipant?._id 
+        : finalMatch.homeParticipant?._id;
+      
+      // Check if third place match exists
+      const thirdPlaceMatch = matches.find(m => m.isThirdPlaceMatch && (m.status === 'completed' || m.status === 'walkover'));
+      const thirdPlace = thirdPlaceMatch?.winner?._id;
+      
+      setWinnersForm({
+        first: winner || '',
+        second: runnerUp || '',
+        third: thirdPlace || winnersForm.third // Keep existing third place if no third place match
+      });
+    }
+  };
+
+  // Initialize winners form with existing data
+  React.useEffect(() => {
+    if (fixture?.winners) {
+      setWinnersForm({
+        first: fixture.winners.first?._id || '',
+        second: fixture.winners.second?._id || '',
+        third: fixture.winners.third?._id || ''
+      });
+    }
+  }, [fixture]);
+
+  // Auto-fill when finals are completed
+  React.useEffect(() => {
+    if (shouldShowWinnerSelection()) {
+      autoFillWinners();
+    }
+  }, [matches, fixture]);
 
   const renderKnockoutBracket = () => {
     const rounds = Math.max(...matches.map(m => m.round));
@@ -1210,7 +1496,27 @@ function FixtureDetailContent({ params }: { params: Promise<Params> }) {
   };
 
   if (loading) return <div>Loading...</div>;
-  if (error) return <div>Error: {error}</div>;
+  if (error) return (
+    <div className="min-h-screen bg-gray-100">
+      <Header />
+      <div className="max-w-4xl mx-auto p-6">
+        <div className="bg-red-50 border border-red-200 rounded-lg p-6">
+          <h2 className="text-lg font-semibold text-red-800 mb-2">Error Loading Fixture</h2>
+          <p className="text-red-700 mb-4">{error}</p>
+          <button
+            onClick={() => {
+              setError(null);
+              setLoading(true);
+              fetchFixtureDetails();
+            }}
+            className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 transition-colors"
+          >
+            Try Again
+          </button>
+        </div>
+      </div>
+    </div>
+  );
   if (!fixture) return <div>Fixture not found</div>;
 
   return (
@@ -1433,6 +1739,162 @@ function FixtureDetailContent({ params }: { params: Promise<Params> }) {
               ))}
             </div>
           </div>
+
+          {/* Tournament Winner Selection */}
+          {shouldShowWinnerSelection() && (isAdmin || isSuperAdmin) && (
+            <div className="bg-white shadow rounded-lg p-6 mb-6 print-hide">
+              <h2 className="text-lg font-medium text-gray-900 mb-4">Tournament Winners</h2>
+              
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                {/* First Place */}
+                <div>
+                  <label className="block text-sm font-semibold text-gray-800 mb-2">
+                    🥇 First Place
+                  </label>
+                  <select
+                    value={winnersForm.first}
+                    onChange={(e) => setWinnersForm({ ...winnersForm, first: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-yellow-500 focus:border-yellow-500 text-gray-900"
+                  >
+                    <option value="">Select Winner</option>
+                    {participants?.map((participant) => (
+                      <option key={participant._id} value={participant._id}>
+                        {participant.name || participant.displayName}
+                        {fixture?.participantType === 'player' && getPlayerTeamName(participant) && (
+                          ` (${getPlayerTeamName(participant)})`
+                        )}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Second Place */}
+                <div>
+                  <label className="block text-sm font-semibold text-gray-800 mb-2">
+                    🥈 Second Place
+                  </label>
+                  <select
+                    value={winnersForm.second}
+                    onChange={(e) => setWinnersForm({ ...winnersForm, second: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-gray-500 focus:border-gray-500 text-gray-900"
+                  >
+                    <option value="">Select Runner-up</option>
+                    {participants?.filter(p => p._id !== winnersForm.first).map((participant) => (
+                      <option key={participant._id} value={participant._id}>
+                        {participant.name || participant.displayName}
+                        {fixture?.participantType === 'player' && getPlayerTeamName(participant) && (
+                          ` (${getPlayerTeamName(participant)})`
+                        )}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Third Place */}
+                <div>
+                  <label className="block text-sm font-semibold text-gray-800 mb-2">
+                    🥉 Third Place
+                  </label>
+                  <select
+                    value={winnersForm.third}
+                    onChange={(e) => setWinnersForm({ ...winnersForm, third: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-orange-500 focus:border-orange-500 text-gray-900"
+                  >
+                    <option value="">Select Third Place</option>
+                    {participants?.filter(p => p._id !== winnersForm.first && p._id !== winnersForm.second).map((participant) => (
+                      <option key={participant._id} value={participant._id}>
+                        {participant.name || participant.displayName}
+                        {fixture?.participantType === 'player' && getPlayerTeamName(participant) && (
+                          ` (${getPlayerTeamName(participant)})`
+                        )}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="flex justify-between items-center">
+                <div className="text-sm text-gray-600">
+                  {(() => {
+                    const maxRound = Math.max(...matches.map(m => m.round));
+                    const finalMatch = matches.find(m => m.round === maxRound && (m.status === 'completed' || m.status === 'walkover'));
+                    return finalMatch?.winner 
+                      ? "Finals completed - 1st and 2nd place auto-filled" 
+                      : "Semi-finals completed - set winners manually";
+                  })()}
+                </div>
+                <button
+                  onClick={handleUpdateWinners}
+                  className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition-colors"
+                >
+                  Update Winners
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Display Winners (Read-only) */}
+          {fixture?.winners && (fixture.winners.first || fixture.winners.second || fixture.winners.third) && (
+            <div className="bg-white shadow rounded-lg p-6 mb-6 print-hide">
+              <h2 className="text-lg font-medium text-gray-900 mb-4">Tournament Results</h2>
+              
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {/* First Place Display */}
+                {fixture.winners.first && (
+                  <div className="bg-gradient-to-r from-yellow-50 to-amber-50 border border-yellow-200 rounded-lg p-4">
+                    <div className="text-center">
+                      <div className="text-2xl mb-2">🥇</div>
+                      <h3 className="text-lg font-bold text-yellow-800">Champion</h3>
+                      <p className="font-semibold text-gray-900">
+                        {fixture.winners.first.name || fixture.winners.first.displayName}
+                      </p>
+                      {fixture?.participantType === 'player' && getPlayerTeamName(fixture.winners.first) && (
+                        <p className="text-sm text-gray-600 italic">
+                          Team: {getPlayerTeamName(fixture.winners.first)}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Second Place Display */}
+                {fixture.winners.second && (
+                  <div className="bg-gradient-to-r from-gray-50 to-slate-50 border border-gray-200 rounded-lg p-4">
+                    <div className="text-center">
+                      <div className="text-2xl mb-2">🥈</div>
+                      <h4 className="text-lg font-semibold text-gray-700">Runner-up</h4>
+                      <p className="font-medium text-gray-800">
+                        {fixture.winners.second.name || fixture.winners.second.displayName}
+                      </p>
+                      {fixture?.participantType === 'player' && getPlayerTeamName(fixture.winners.second) && (
+                        <p className="text-sm text-gray-500 italic">
+                          Team: {getPlayerTeamName(fixture.winners.second)}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Third Place Display */}
+                {fixture.winners.third && (
+                  <div className="bg-gradient-to-r from-orange-50 to-amber-50 border border-orange-200 rounded-lg p-4">
+                    <div className="text-center">
+                      <div className="text-2xl mb-2">🥉</div>
+                      <h4 className="text-lg font-semibold text-orange-700">Third Place</h4>
+                      <p className="font-medium text-gray-800">
+                        {fixture.winners.third.name || fixture.winners.third.displayName}
+                      </p>
+                      {fixture?.participantType === 'player' && getPlayerTeamName(fixture.winners.third) && (
+                        <p className="text-sm text-gray-500 italic">
+                          Team: {getPlayerTeamName(fixture.winners.third)}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Matches/Bracket */}
           <div className="bg-white shadow rounded-lg p-6">
