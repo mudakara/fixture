@@ -108,6 +108,14 @@ export default function Header() {
       ]
     },
     { 
+      name: 'AI Fixtures', 
+      roles: ['super_admin', 'admin'],
+      submenu: [
+        { name: 'Create AI Fixture', href: '/ai-fixtures/create', roles: ['super_admin', 'admin'] },
+        { name: 'AI Fixtures List', href: '/ai-fixtures', roles: ['super_admin', 'admin'] }
+      ]
+    },
+    { 
       name: 'Scorecard', 
       roles: ['super_admin', 'admin', 'captain', 'vicecaptain', 'player'],
       submenu: [
