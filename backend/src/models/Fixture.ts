@@ -27,6 +27,26 @@ export interface IFixture extends Document {
     pointsForWin?: number;
     pointsForDraw?: number;
     pointsForLoss?: number;
+    
+    // AI generation settings
+    aiGenerated?: boolean;
+    aiSettings?: {
+      optimizationGoals?: {
+        balanceSkillLevels?: boolean;
+        avoidSameTeamFirstRound?: boolean;
+        prioritizeCompetitiveMatches?: boolean;
+        fairScheduling?: boolean;
+      };
+      constraints?: {
+        maxMatchesPerDay?: number;
+        minRestBetweenMatches?: number;
+      };
+      generationMetadata?: {
+        modelUsed?: string;
+        optimizationScore?: number;
+        generationTime?: number;
+      };
+    };
   };
   winners?: {
     first?: mongoose.Types.ObjectId;
@@ -134,6 +154,29 @@ const FixtureSchema = new Schema<IFixture>(
       pointsForLoss: {
         type: Number,
         default: 0
+      },
+      
+      // AI generation settings
+      aiGenerated: {
+        type: Boolean,
+        default: false
+      },
+      aiSettings: {
+        optimizationGoals: {
+          balanceSkillLevels: Boolean,
+          avoidSameTeamFirstRound: Boolean,
+          prioritizeCompetitiveMatches: Boolean,
+          fairScheduling: Boolean
+        },
+        constraints: {
+          maxMatchesPerDay: Number,
+          minRestBetweenMatches: Number
+        },
+        generationMetadata: {
+          modelUsed: String,
+          optimizationScore: Number,
+          generationTime: Number
+        }
       }
     },
     winners: {

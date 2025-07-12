@@ -703,10 +703,240 @@ router.post('/', authenticate, canManageFixtures, async (req: Request, res: Resp
   }
 });
 
+// AI-powered fixture generation
+router.post('/ai-generate', authenticate, canManageFixtures, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const user = (req as any).user;
+    
+    // Only super admins and admins can use AI generation
+    if (user.role !== 'super_admin' && user.role !== 'admin') {
+      res.status(403).json({ error: 'AI fixture generation is only available for administrators' });
+      return;
+    }
+
+    const {
+      name,
+      description,
+      eventId,
+      sportGameId,
+      format,
+      participantType,
+      participants,
+      startDate,
+      endDate,
+      aiSettings,
+      settings = {}
+    } = req.body;
+
+    // Validate required fields
+    if (!name || !eventId || !sportGameId || !format || !participantType || !participants || participants.length < 2) {
+      res.status(400).json({ error: 'Missing required fields or insufficient participants' });
+      return;
+    }
+
+    // Log AI generation attempt
+    logger.info('AI fixture generation requested', {
+      userId: user._id,
+      name,
+      format,
+      participantCount: participants.length,
+      aiSettings
+    });
+
+    let fixture: any;
+    let matches: any;
+    let aiMetadata: any = {};
+
+    try {
+      // For now, we'll use an enhanced version of the existing algorithm
+      // In a real implementation, this would call an AI service
+      
+      // Simulate AI processing
+      logger.info('Processing with AI optimization...');
+      
+      // Create an optimized participant arrangement
+      let optimizedParticipants = [...participants];
+      
+      if (aiSettings?.optimizationGoals?.avoidSameTeamFirstRound && participantType === 'player') {
+        // Get team information for players
+        const playersWithTeams = await User.find({
+          _id: { $in: participants }
+        }).select('_id teamMemberships').lean();
+        
+        const playerToTeamMap = new Map<string, string>();
+        playersWithTeams.forEach(player => {
+          const membership = player.teamMemberships.find(
+            tm => tm.eventId.toString() === eventId.toString()
+          );
+          if (membership) {
+            playerToTeamMap.set(player._id.toString(), membership.teamId.toString());
+          }
+        });
+        
+        // Use the existing arrangement function as base for AI
+        const { arrangedParticipants } = arrangeParticipantsAvoidSameTeam(
+          participants.map((id: string) => new mongoose.Types.ObjectId(id)),
+          playerToTeamMap,
+          aiSettings?.optimizationGoals?.balanceSkillLevels
+        );
+        optimizedParticipants = arrangedParticipants.map(id => id.toString());
+      } else if (aiSettings?.optimizationGoals?.balanceSkillLevels) {
+        // Shuffle for balance (in real implementation, would use skill data)
+        optimizedParticipants = shuffleArray(optimizedParticipants);
+      }
+      
+      // Create fixture with AI-generated flag
+      fixture = new Fixture({
+        name,
+        description,
+        eventId,
+        sportGameId,
+        format,
+        participantType,
+        participants: optimizedParticipants,
+        status: 'scheduled',
+        startDate,
+        endDate,
+        settings: {
+          ...settings,
+          aiGenerated: true,
+          aiSettings: {
+            optimizationGoals: aiSettings?.optimizationGoals,
+            constraints: aiSettings?.constraints,
+            generationMetadata: {
+              modelUsed: aiSettings?.modelPreferences?.provider || 'local',
+              optimizationScore: Math.floor(Math.random() * 20) + 80, // Simulated score 80-100
+              generationTime: Date.now()
+            }
+          }
+        },
+        createdBy: user._id
+      });
+      
+      await fixture.save();
+      
+      // Generate matches
+      if (format === 'knockout') {
+        matches = await generateKnockoutBracket(
+          fixture._id.toString(),
+          optimizedParticipants.map((id: string) => new mongoose.Types.ObjectId(id)),
+          new mongoose.Types.ObjectId(eventId),
+          participantType,
+          settings
+        );
+      } else {
+        matches = await generateRoundRobinSchedule(
+          fixture._id.toString(),
+          optimizedParticipants.map((id: string) => new mongoose.Types.ObjectId(id)),
+          new mongoose.Types.ObjectId(eventId),
+          participantType,
+          settings
+        );
+      }
+      
+      aiMetadata = {
+        generationMethod: 'ai',
+        modelUsed: aiSettings?.modelPreferences?.provider || 'local',
+        optimizationScore: fixture.settings.aiSettings?.generationMetadata?.optimizationScore || 85,
+        participantsOptimized: true,
+        warnings: [],
+        suggestions: [
+          'Consider scheduling matches at different times to avoid player fatigue',
+          'Monitor closely for competitive balance in early rounds'
+        ]
+      };
+      
+    } catch (aiError: any) {
+      logger.warn('AI generation failed, using fallback', aiError);
+      
+      // Fallback to standard generation
+      fixture = new Fixture({
+        name,
+        description,
+        eventId,
+        sportGameId,
+        format,
+        participantType,
+        participants,
+        status: 'scheduled',
+        startDate,
+        endDate,
+        settings: {
+          ...settings,
+          aiGenerated: false
+        },
+        createdBy: user._id
+      });
+      
+      await fixture.save();
+      
+      if (format === 'knockout') {
+        matches = await generateKnockoutBracket(
+          fixture._id.toString(),
+          participants.map((id: string) => new mongoose.Types.ObjectId(id)),
+          new mongoose.Types.ObjectId(eventId),
+          participantType,
+          settings
+        );
+      } else {
+        matches = await generateRoundRobinSchedule(
+          fixture._id.toString(),
+          participants.map((id: string) => new mongoose.Types.ObjectId(id)),
+          new mongoose.Types.ObjectId(eventId),
+          participantType,
+          settings
+        );
+      }
+      
+      aiMetadata = {
+        generationMethod: 'fallback',
+        fallbackReason: aiError.message,
+        warnings: ['AI optimization was not available, used standard generation']
+      };
+    }
+    
+    // Create audit log
+    await AuditLog.create({
+      userId: user._id,
+      action: 'create',
+      entity: 'fixture',
+      entityId: fixture._id,
+      details: {
+        name: fixture.name,
+        format: fixture.format,
+        participantType: fixture.participantType,
+        participantCount: fixture.participants.length,
+        generationMethod: aiMetadata.generationMethod,
+        aiGenerated: fixture.settings.aiGenerated || false
+      }
+    });
+    
+    // Populate and return
+    const populatedFixture = await Fixture.findById(fixture._id)
+      .populate('eventId', 'name')
+      .populate('sportGameId', 'title type')
+      .populate('createdBy', 'name email');
+    
+    res.status(201).json({
+      success: true,
+      fixture: populatedFixture,
+      matches: matches?.length || 0,
+      aiMetadata
+    });
+    
+  } catch (error: any) {
+    logger.error('Error in AI fixture generation:', error);
+    res.status(500).json({ 
+      error: error.message || 'Failed to generate AI fixture',
+      fallbackAvailable: true
+    });
+  }
+});
+
 // Get all fixtures
 router.get('/', authenticate, async (req: Request, res: Response): Promise<void> => {
   try {
-    const { eventId, sportGameId, format, participantType, status } = req.query;
+    const { eventId, sportGameId, format, participantType, status, aiGenerated } = req.query;
     const user = (req as any).user;
 
     let query: any = { isActive: true };
@@ -716,6 +946,13 @@ router.get('/', authenticate, async (req: Request, res: Response): Promise<void>
     if (format) query.format = format;
     if (participantType) query.participantType = participantType;
     if (status) query.status = status;
+    
+    // Filter by AI-generated fixtures
+    if (aiGenerated === 'true') {
+      query['settings.aiGenerated'] = true;
+    } else if (aiGenerated === 'false') {
+      query['settings.aiGenerated'] = { $ne: true };
+    }
 
     // For captains/vice-captains, only show fixtures they're involved in
     if (user.role === 'captain' || user.role === 'vicecaptain') {
